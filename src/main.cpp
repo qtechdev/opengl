@@ -79,10 +79,27 @@ int main(int argc, const char *argv[]) {
 
   glUseProgram(shader_program);
 
-  std::vector<float> vertices = {
-    -0.5, -0.5, 0.0,
-    0.5, -0.5, 0.0,
-    0.0, 0.5, 0.0
+  std::vector<GLfloat> vertices = {
+    /*      a
+           /\
+        b /__\ c
+         /\  /\
+        /__\/__\
+       d   e   f
+    */
+
+     0.0,   0.5, 0.0, // a
+    -0.25,  0.0, 0.0, // b
+     0.25,  0.0, 0.0, // c
+    -0.5,  -0.5, 0.0, // d
+     0.0,  -0.5, 0.0, // e
+     0.5,  -0.5, 0.0 // f
+  };
+
+  std::vector<GLuint> indices = {
+    0, 1, 2,
+    1, 3, 4,
+    2, 4, 5
   };
 
   GLuint vao;
@@ -92,12 +109,21 @@ int main(int argc, const char *argv[]) {
   GLuint vbo;
   glGenBuffers(1, &vbo);
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_STATIC_DRAW);
+  glBufferData(
+    GL_ARRAY_BUFFER, vertices.size()*sizeof(GLfloat), vertices.data(),
+    GL_STATIC_DRAW
+  );
 
+  GLuint ebo;
+  glGenBuffers(1, &ebo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+  glBufferData(
+    GL_ELEMENT_ARRAY_BUFFER, indices.size()*sizeof(GLuint), indices.data(),
+    GL_STATIC_DRAW
+  );
 
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
   glEnableVertexAttribArray(0);
-
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -106,7 +132,7 @@ int main(int argc, const char *argv[]) {
 
     glUseProgram(shader_program);
     glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);
 
     glfwSwapBuffers(window);
   }
