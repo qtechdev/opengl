@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include "error.hpp"
+#include "shader_program.hpp"
 #include "window.hpp"
 
 const int window_width = 640;
@@ -52,56 +53,29 @@ int main(int argc, const char *argv[]) {
     }
   )fss";
 
-  GLuint v_shader;
-  v_shader = glCreateShader(GL_VERTEX_SHADER);
-  const GLchar *v_shader_str = v_shader_string.c_str();
-  glShaderSource(v_shader, 1, &v_shader_str, nullptr);
-  glCompileShader(v_shader);
+  GLuint v_shader = createShader(GL_VERTEX_SHADER, v_shader_string);
   {
-    int  success;
-    char infoLog[512];
-    glGetShaderiv(v_shader, GL_COMPILE_STATUS, &success);
-
-    if(!success) {
-      glGetShaderInfoLog(v_shader, 512, nullptr, infoLog);
-      std::cerr << "vertex shader compilation failed\n" << infoLog << "\n";
+    const auto compile_error = getCompileStatus(v_shader);
+    if (compile_error) {
+      std::cerr << "vertex shader compilation failed\n" << *compile_error << "\n";
     }
   }
 
-  GLuint f_shader;
-  f_shader = glCreateShader(GL_FRAGMENT_SHADER);
-  const GLchar *f_shader_str = f_shader_string.c_str();
-  glShaderSource(f_shader, 1, &f_shader_str, nullptr);
-  glCompileShader(f_shader);
+  GLuint f_shader = createShader(GL_FRAGMENT_SHADER, f_shader_string);
   {
-    int  success;
-    char infoLog[512];
-    glGetShaderiv(f_shader, GL_COMPILE_STATUS, &success);
-
-    if(!success) {
-      glGetShaderInfoLog(f_shader, 512, nullptr, infoLog);
-      std::cerr << "fragment shader compilation failed\n" << infoLog << "\n";
+    const auto compile_error = getCompileStatus(f_shader);
+    if (compile_error) {
+      std::cerr << "fragment shader compilation failed\n" << *compile_error << "\n";
     }
   }
 
-  GLuint shader_program;
-  shader_program = glCreateProgram();
-  glAttachShader(shader_program, v_shader);
-  glAttachShader(shader_program, f_shader);
-  glLinkProgram(shader_program);
+  GLuint shader_program = createProgram(v_shader, f_shader, true);
   {
-    int  success;
-    char infoLog[512];
-    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-
-    if(!success) {
-      glGetProgramInfoLog(shader_program, 512, nullptr, infoLog);
-      std::cerr << "program link failed\n" << infoLog << "\n";
+    const auto link_error = getLinkStatus(shader_program);
+    if (link_error) {
+      std::cerr << "shader shader_program link failed\n" << *link_error << "\n";
     }
   }
-
-  // glDeleteShader(v_shader);
-  // glDeleteShader(f_shader);
 
   glUseProgram(shader_program);
 
