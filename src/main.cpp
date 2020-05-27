@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include "error.hpp"
+#include "file_io.hpp"
 #include "shader_program.hpp"
 #include "window.hpp"
 
@@ -15,6 +16,8 @@ const int window_height = 480;
 void processInput(GLFWwindow *window);
 
 int main(int argc, const char *argv[]) {
+  xdg::base base_dirs = xdg::get_base_directories();
+
   GLFWwindow *window = createWindow(
     3, 3, true, window_width, window_height, "Hello, OpenGL!"
   );
@@ -35,29 +38,17 @@ int main(int argc, const char *argv[]) {
   glViewport(0, 0, window_width, window_height);
   glClearColor(0.1, 0.1, 0.2, 1.0);
 
-  std::string v_shader_string = R"vss(
-    #version 330 core
-    layout (location = 0) in vec3 attr_pos;
-    layout (location = 1) in vec3 attr_colour;
+  auto vs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/vshader.glsl");
+  if (!vs_path) { std::cerr << "vertex shader not found"; }
+  auto vs_data = xdg::read(*vs_path);
+  if (!vs_data) { std::cerr << "could not read vertex shader"; }
+  std::string v_shader_string = *vs_data;
 
-    out vec3 _colour;
-
-    void main() {
-      gl_Position = vec4(attr_pos, 1.0);
-      _colour = attr_colour;
-    }
-  )vss";
-
-  std::string f_shader_string = R"fss(
-    #version 330 core
-
-    in vec3 _colour;
-    out vec4 FragmentColour;
-
-    void main() {
-      FragmentColour = vec4(_colour, 1.0);
-    }
-  )fss";
+  auto fs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/fshader.glsl");
+  if (!fs_path) { std::cerr << "fragment shader not found"; }
+  auto fs_data = xdg::read(*fs_path);
+  if (!fs_data) { std::cerr << "could not read fragment shader"; }
+  std::string f_shader_string = *fs_data;
 
   GLuint v_shader = createShader(GL_VERTEX_SHADER, v_shader_string);
   {
