@@ -13,17 +13,31 @@
 const int window_width = 640;
 const int window_height = 480;
 
+const int gl_major_version = 3;
+const int gl_minor_version = 3;
+
 void processInput(GLFWwindow *window);
 
 int main(int argc, const char *argv[]) {
   xdg::base base_dirs = xdg::get_base_directories();
+  auto log_path = xdg::get_data_path(base_dirs, "qogl", "logs/qogl.log", true);
+  xdg::write(*log_path, "qogl.log ----------------------------------\n", true);
 
   GLFWwindow *window = createWindow(
-    3, 3, true, window_width, window_height, "Hello, OpenGL!"
+    gl_major_version, gl_minor_version, true, window_width, window_height,
+    "Hello, OpenGL!"
   );
 
+  {
+    std::stringstream gl_version;
+    gl_version << gl_major_version << "." << gl_minor_version;
+    xdg::write(*log_path, "Attempting to create context: ");
+    xdg::write(*log_path, gl_version.str());
+    xdg::write(*log_path, "\n");
+  }
+
   if (window == nullptr) {
-    std::cerr << "failed to create window\n";
+    xdg::write(*log_path, "failed to create window\n");
     glfwDestroyWindow(window);
     return to_underlying(error_code_t::window_failed);
   }
@@ -31,8 +45,22 @@ int main(int argc, const char *argv[]) {
   glfwMakeContextCurrent(window);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    std::cerr << "failed to initialise GLAD\n";
+    xdg::write(*log_path, "failed to initialise GLAD\n");
     return to_underlying(error_code_t::glad_failed);
+  }
+
+  {
+    std::string opengl_version = reinterpret_cast<const char *>( glGetString(GL_VERSION));
+    xdg::write(*log_path, "OpenGL Version: ");
+    xdg::write(*log_path, opengl_version);
+    xdg::write(*log_path, "\n");
+  }
+
+  {
+    std::string glfw_version = glfwGetVersionString();
+    xdg::write(*log_path, "GLFW Version: ");
+    xdg::write(*log_path, glfw_version);
+    xdg::write(*log_path, "\n");
   }
 
   glViewport(0, 0, window_width, window_height);
@@ -43,12 +71,18 @@ int main(int argc, const char *argv[]) {
   auto vs_data = xdg::read(*vs_path);
   if (!vs_data) { std::cerr << "could not read vertex shader"; }
   std::string v_shader_string = *vs_data;
+  xdg::write(*log_path, "loading vertex shader ...\n--> ");
+  xdg::write(*log_path, *vs_path);
+  xdg::write(*log_path, "\n");
 
   auto fs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/fshader.glsl");
   if (!fs_path) { std::cerr << "fragment shader not found"; }
   auto fs_data = xdg::read(*fs_path);
   if (!fs_data) { std::cerr << "could not read fragment shader"; }
   std::string f_shader_string = *fs_data;
+  xdg::write(*log_path, "loading fragment shader ...\n--> ");
+  xdg::write(*log_path, *fs_path);
+  xdg::write(*log_path, "\n");
 
   GLuint v_shader = createShader(GL_VERTEX_SHADER, v_shader_string);
   {
