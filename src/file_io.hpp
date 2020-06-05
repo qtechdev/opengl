@@ -27,9 +27,27 @@ namespace xdg {
     const base &b, const std::string &name, const path &p,
     const bool create=false
   );
-  std::optional<std::string> read(const path &p);
-  bool write(const path &p, const std::string &data, const bool trunc=false);
 };
 
+namespace fio {
+  std::optional<std::string> read(const xdg::path &p);
+  bool write(const xdg::path &p, const std::string &data, const bool trunc=false);
+
+  class log_stream_f {
+  public:
+    log_stream_f(const std::string &s, const bool no_buf=false);
+    template <typename T>
+    std::ofstream &operator<<(const T t);
+  private:
+    std::ofstream ofs;
+  };
+};
+
+template<typename T>
+std::ofstream &fio::log_stream_f::operator<<(const T t) {
+  ofs << t;
+
+  return ofs;
+}
 
 #endif // __FILE_IO_HPP__

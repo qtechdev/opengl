@@ -107,7 +107,7 @@ std::optional<xdg::path> xdg::get_data_path(
   return {};
 }
 
-std::optional<std::string> xdg::read(const path &p) {
+std::optional<std::string> fio::read(const xdg::path &p) {
   std::ifstream ifs(p);
 
   if (ifs) {
@@ -125,7 +125,7 @@ std::optional<std::string> xdg::read(const path &p) {
   return {};
 }
 
-bool xdg::write(const path &p, const std::string &data, const bool trunc) {
+bool fio::write(const xdg::path &p, const std::string &data, const bool trunc) {
   std::ofstream ofs;
 
   if (trunc) {
@@ -141,4 +141,14 @@ bool xdg::write(const path &p, const std::string &data, const bool trunc) {
   }
 
   return false;
+}
+
+fio::log_stream_f::log_stream_f(const std::string &s, const bool no_buf) {
+  if (no_buf) { ofs.rdbuf()->pubsetbuf(0, 0); }
+  ofs.open(s, std::ios::out | std::ios::app);
+
+  auto now = std::chrono::system_clock::now();
+  std::time_t time = std::chrono::system_clock::to_time_t(now);
+  ofs << std::string(79, '=') << "\n";
+  ofs << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S") << "\n";
 }
