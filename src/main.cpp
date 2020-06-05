@@ -12,6 +12,7 @@
 #include "file_io.hpp"
 #include "shader_program.hpp"
 #include "window.hpp"
+#include "xdg.hpp"
 
 const int window_width = 640;
 const int window_height = 480;
