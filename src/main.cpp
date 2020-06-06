@@ -8,6 +8,10 @@
 #include "glad.h"
 #include <GLFW/glfw3.h>
 
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -114,10 +118,10 @@ int main(int argc, const char *argv[]) {
      b    c
     */
 
-    -0.5,   0.5, 0.0, // a
-    -0.5,  -0.5, 0.0, // b
-     0.5,  -0.5, 0.0, // c
-     0.5,   0.5, 0.0  // d
+    0.0, 1.0, 0.0, // a
+    0.0, 0.0, 0.0, // b
+    1.0, 0.0, 0.0, // c
+    1.0, 1.0, 0.0  // d
   };
 
   const std::vector<GLfloat> colours = {
@@ -197,6 +201,7 @@ int main(int argc, const char *argv[]) {
   int width;
   int height;
   int channels;
+  stbi_set_flip_vertically_on_load(true);
   unsigned char *data = stbi_load(texture_path->c_str(), &width, &height, &channels, 0);
   if (data == nullptr) { log_stream << "could not read texture"; }
 
@@ -214,6 +219,24 @@ int main(int argc, const char *argv[]) {
   );
   stbi_image_free(data);
 
+  glm::mat4 projection = glm::ortho<double>(
+    0, window_width,
+    0, window_height,
+    0.1, 100.0
+  );
+
+  glm::mat4 view = glm::mat4(1.0);
+  view = glm::translate(view, glm::vec3(0.0, 0.0, -1.0));
+
+  glm::mat4 model = glm::mat4(1.0);
+  model = glm::scale(model, glm::vec3(window_width, window_height, 1));
+
+  int projection_loc = glGetUniformLocation(shader_program, "projection");
+  glUniformMatrix4fv(projection_loc, 1, GL_FALSE, glm::value_ptr(projection));
+  int view_loc = glGetUniformLocation(shader_program, "view");
+  glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm::value_ptr(view));
+  int model_loc = glGetUniformLocation(shader_program, "model");
+  glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm::value_ptr(model));
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
