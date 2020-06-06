@@ -1,3 +1,6 @@
+#include <chrono>
+#include <ctime>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -6,21 +9,37 @@
 #include <GLFW/glfw3.h>
 
 #include "error.hpp"
+#include "file_io.hpp"
 #include "shader_program.hpp"
 #include "window.hpp"
+#include "xdg.hpp"
 
 const int window_width = 640;
 const int window_height = 480;
 
+const int gl_major_version = 3;
+const int gl_minor_version = 3;
+
 void processInput(GLFWwindow *window);
 
+
 int main(int argc, const char *argv[]) {
+  xdg::base base_dirs = xdg::get_base_directories();
+
+  auto log_path = xdg::get_data_path(base_dirs, "qogl", "logs/qogl.log", true);
+  fio::log_stream_f log_stream(*log_path);
+
   GLFWwindow *window = createWindow(
-    3, 3, true, window_width, window_height, "Hello, OpenGL!"
+    gl_major_version, gl_minor_version, true, window_width, window_height,
+    "Hello, OpenGL!"
   );
 
+  log_stream << "Attempting to create context: ";
+  log_stream << gl_major_version << "." << gl_minor_version << "...\n";
+
+
   if (window == nullptr) {
-    std::cerr << "failed to create window\n";
+    log_stream << "failed to create window\n";
     glfwDestroyWindow(window);
     return to_underlying(error_code_t::window_failed);
   }
@@ -28,42 +47,42 @@ int main(int argc, const char *argv[]) {
   glfwMakeContextCurrent(window);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    std::cerr << "failed to initialise GLAD\n";
+    log_stream << "failed to initialise GLAD\n";
     return to_underlying(error_code_t::glad_failed);
+  }
+
+  {
+    std::string opengl_version = reinterpret_cast<const char *>( glGetString(GL_VERSION));
+    log_stream << "OpenGL Version: " << opengl_version << "\n";
+  }
+
+  {
+    std::string glfw_version = glfwGetVersionString();
+    log_stream << "GLFW Version: " << glfw_version << "\n";
   }
 
   glViewport(0, 0, window_width, window_height);
   glClearColor(0.1, 0.1, 0.2, 1.0);
 
-  std::string v_shader_string = R"vss(
-    #version 330 core
-    layout (location = 0) in vec3 attr_pos;
-    layout (location = 1) in vec3 attr_colour;
+  auto vs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/vshader.glsl");
+  if (!vs_path) { log_stream << "vertex shader not found"; }
+  auto vs_data = fio::read(*vs_path);
+  if (!vs_data) { log_stream << "could not read vertex shader"; }
+  std::string v_shader_string = *vs_data;
+  log_stream << "loading vertex shader ...\n--> " << *vs_path << "\n";
 
-    out vec3 _colour;
-
-    void main() {
-      gl_Position = vec4(attr_pos, 1.0);
-      _colour = attr_colour;
-    }
-  )vss";
-
-  std::string f_shader_string = R"fss(
-    #version 330 core
-
-    in vec3 _colour;
-    out vec4 FragmentColour;
-
-    void main() {
-      FragmentColour = vec4(_colour, 1.0);
-    }
-  )fss";
+  auto fs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/fshader.glsl");
+  if (!fs_path) { log_stream << "fragment shader not found"; }
+  auto fs_data = fio::read(*fs_path);
+  if (!fs_data) { log_stream << "could not read fragment shader"; }
+  std::string f_shader_string = *fs_data;
+  log_stream << "loading fragment shader ...\n--> " << *fs_path << "\n";
 
   GLuint v_shader = createShader(GL_VERTEX_SHADER, v_shader_string);
   {
     const auto compile_error = getCompileStatus(v_shader);
     if (compile_error) {
-      std::cerr << "vertex shader compilation failed\n" << *compile_error << "\n";
+      log_stream << "vertex shader compilation failed\n" << *compile_error << "\n";
     }
   }
 
@@ -71,7 +90,7 @@ int main(int argc, const char *argv[]) {
   {
     const auto compile_error = getCompileStatus(f_shader);
     if (compile_error) {
-      std::cerr << "fragment shader compilation failed\n" << *compile_error << "\n";
+      log_stream << "fragment shader compilation failed\n" << *compile_error << "\n";
     }
   }
 
@@ -79,7 +98,7 @@ int main(int argc, const char *argv[]) {
   {
     const auto link_error = getLinkStatus(shader_program);
     if (link_error) {
-      std::cerr << "shader shader_program link failed\n" << *link_error << "\n";
+      log_stream << "shader shader_program link failed\n" << *link_error << "\n";
     }
   }
 
