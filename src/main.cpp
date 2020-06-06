@@ -1,3 +1,4 @@
+#include <array>
 #include <chrono>
 #include <ctime>
 #include <fstream>
@@ -8,11 +9,17 @@
 #include "glad.h"
 #include <GLFW/glfw3.h>
 
-#include "error.hpp"
-#include "file_io.hpp"
-#include "shader_program.hpp"
-#include "window.hpp"
-#include "xdg.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
+#include "gl/rect.hpp"
+#include "gl/shader_program.hpp"
+#include "gl/texture.hpp"
+#include "gl/window.hpp"
+#include "util/error.hpp"
+#include "util/file_io.hpp"
+#include "util/xdg.hpp"
 
 const int window_width = 640;
 const int window_height = 480;
@@ -21,25 +28,50 @@ const int gl_major_version = 3;
 const int gl_minor_version = 3;
 
 void processInput(GLFWwindow *window);
-
+std::string get_path(
+  const xdg::base &b, const std::string &n, const std::string &p
+  #ifdef DEBUG
+  , fio::log_stream_f &log_stream
+  #endif
+);
+std::string load_string_from_file(
+  const xdg::base &b, const std::string &n, const std::string &p
+  #ifdef DEBUG
+  , fio::log_stream_f &log_stream
+  #endif
+);
+Texture load_texture_from_file(
+  const xdg::base &b, const std::string &n, const std::string &p
+  #ifdef DEBUG
+  , fio::log_stream_f &log_stream
+  #endif
+);
+std::array<glm::mat4, 3> fullscreen_rect_matrices(const int w, const int h);
 
 int main(int argc, const char *argv[]) {
   xdg::base base_dirs = xdg::get_base_directories();
 
+  #ifdef DEBUG
   auto log_path = xdg::get_data_path(base_dirs, "qogl", "logs/qogl.log", true);
   fio::log_stream_f log_stream(*log_path);
+  std::cout << "RUNNING IN DEBUG MODE" << std::endl;
+  #endif
 
   GLFWwindow *window = createWindow(
     gl_major_version, gl_minor_version, true, window_width, window_height,
     "Hello, OpenGL!"
   );
 
+  #ifdef DEBUG
   log_stream << "Attempting to create context: ";
   log_stream << gl_major_version << "." << gl_minor_version << "...\n";
-
+  #endif
 
   if (window == nullptr) {
+    #ifdef DEBUG
     log_stream << "failed to create window\n";
+    #endif
+
     glfwDestroyWindow(window);
     return to_underlying(error_code_t::window_failed);
   }
@@ -47,133 +79,77 @@ int main(int argc, const char *argv[]) {
   glfwMakeContextCurrent(window);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    #ifdef DEBUG
     log_stream << "failed to initialise GLAD\n";
+    #endif
+
     return to_underlying(error_code_t::glad_failed);
   }
 
-  {
-    std::string opengl_version = reinterpret_cast<const char *>( glGetString(GL_VERSION));
-    log_stream << "OpenGL Version: " << opengl_version << "\n";
-  }
-
-  {
-    std::string glfw_version = glfwGetVersionString();
-    log_stream << "GLFW Version: " << glfw_version << "\n";
-  }
+  #ifdef DEBUG
+  log_stream << "OpenGL Version: " << glGetString(GL_VERSION) << "\n";
+  log_stream << "GLFW Version: " << glfwGetVersionString() << "\n";
+  #endif
 
   glViewport(0, 0, window_width, window_height);
   glClearColor(0.1, 0.1, 0.2, 1.0);
 
-  auto vs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/vshader.glsl");
-  if (!vs_path) { log_stream << "vertex shader not found"; }
-  auto vs_data = fio::read(*vs_path);
-  if (!vs_data) { log_stream << "could not read vertex shader"; }
-  std::string v_shader_string = *vs_data;
-  log_stream << "loading vertex shader ...\n--> " << *vs_path << "\n";
-
-  auto fs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/fshader.glsl");
-  if (!fs_path) { log_stream << "fragment shader not found"; }
-  auto fs_data = fio::read(*fs_path);
-  if (!fs_data) { log_stream << "could not read fragment shader"; }
-  std::string f_shader_string = *fs_data;
-  log_stream << "loading fragment shader ...\n--> " << *fs_path << "\n";
+  std::string v_shader_string = load_string_from_file(
+    base_dirs, "qogl", "shaders/tex/vshader.glsl"
+    #ifdef DEBUG
+    , log_stream
+    #endif
+  );
+  std::string f_shader_string = load_string_from_file(
+    base_dirs, "qogl", "shaders/tex/fshader.glsl"
+    #ifdef DEBUG
+    , log_stream
+    #endif
+  );
 
   GLuint v_shader = createShader(GL_VERTEX_SHADER, v_shader_string);
-  {
-    const auto compile_error = getCompileStatus(v_shader);
-    if (compile_error) {
-      log_stream << "vertex shader compilation failed\n" << *compile_error << "\n";
-    }
-  }
-
   GLuint f_shader = createShader(GL_FRAGMENT_SHADER, f_shader_string);
-  {
-    const auto compile_error = getCompileStatus(f_shader);
-    if (compile_error) {
-      log_stream << "fragment shader compilation failed\n" << *compile_error << "\n";
-    }
+  #ifdef DEBUG
+  const auto v_compile_error = getCompileStatus(v_shader);
+  if (v_compile_error) {
+    log_stream << "vertex shader compilation failed\n";
+    log_stream << *v_compile_error << "\n";
   }
+  const auto f_compile_error = getCompileStatus(f_shader);
+  if (f_compile_error) {
+    log_stream << "fragment shader compilation failed\n";
+    log_stream << *f_compile_error << "\n";
+  }
+  #endif
 
   GLuint shader_program = createProgram(v_shader, f_shader, true);
-  {
-    const auto link_error = getLinkStatus(shader_program);
-    if (link_error) {
-      log_stream << "shader shader_program link failed\n" << *link_error << "\n";
-    }
+  #ifdef DEBUG
+  const auto link_error = getLinkStatus(shader_program);
+  if (link_error) {
+    log_stream << "shader program link failed\n";
+    log_stream << *link_error << "\n";
   }
+  #endif
 
   glUseProgram(shader_program);
 
-  std::vector<GLfloat> vertices = {
-    /*      a
-           /\
-        b /__\ c
-         /\  /\
-        /__\/__\
-       d   e   f
-    */
+  Rect rect = createRect();
 
-     0.0,   0.5, 0.0, // a
-    -0.25,  0.0, 0.0, // b
-     0.25,  0.0, 0.0, // c
-    -0.5,  -0.5, 0.0, // d
-     0.0,  -0.5, 0.0, // e
-     0.5,  -0.5, 0.0  // f
-  };
-
-  std::vector<GLfloat> colours = {
-    1.0, 0.0, 0.0, // a
-    0.5, 0.5, 0.0, // b
-    0.5, 0.0, 0.5, // c
-    0.0, 1.0, 0.0, // d
-    0.0, 0.5, 0.5, // e
-    0.0, 0.0, 1.0  // f
-  };
-
-  std::vector<GLuint> indices = {
-    0, 1, 2,
-    1, 3, 4,
-    2, 4, 5
-  };
-
-  GLuint vao;
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
-
-  GLuint vbo;
-  glGenBuffers(1, &vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(
-    GL_ARRAY_BUFFER, (vertices.size() + colours.size())*sizeof(GLfloat),
-    nullptr, GL_STATIC_DRAW
+  Texture texture = load_texture_from_file(
+    base_dirs, "qogl", "textures/wood.jpg"
+    #ifdef DEBUG
+    , log_stream
+    #endif
   );
-  glBufferSubData(
-    GL_ARRAY_BUFFER, 0,
-    vertices.size()*sizeof(GLfloat), vertices.data()
-  );
-  glBufferSubData(
-    GL_ARRAY_BUFFER, vertices.size()*sizeof(GLfloat),
-    colours.size()*sizeof(GLfloat), colours.data()
+  // Texture texture = loadTexture(texture_path.c_str());
+
+  auto [projection, view, model] = fullscreen_rect_matrices(
+    window_width, window_height
   );
 
-  GLuint ebo;
-  glGenBuffers(1, &ebo);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-  glBufferData(
-    GL_ELEMENT_ARRAY_BUFFER, indices.size()*sizeof(GLuint), indices.data(),
-    GL_STATIC_DRAW
-  );
-
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(
-    0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
-    (void*)(0)
-  );
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(
-    1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
-    (void*)(vertices.size()*sizeof(GLfloat))
-  );
+  uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
+  uniformMatrix4fv(shader_program, "view", glm::value_ptr(view));
+  uniformMatrix4fv(shader_program, "model", glm::value_ptr(model));
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -181,8 +157,8 @@ int main(int argc, const char *argv[]) {
     processInput(window);
 
     glUseProgram(shader_program);
-    glBindVertexArray(vao);
-    glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);
+    bindTexture(texture);
+    drawRect(rect);
 
     glfwSwapBuffers(window);
   }
@@ -194,4 +170,87 @@ void processInput(GLFWwindow *window) {
   if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window, true);
   }
+}
+
+std::string get_path(
+  const xdg::base &b, const std::string &n, const std::string &p
+  #ifdef DEBUG
+  , fio::log_stream_f &log_stream
+  #endif
+) {
+  #ifdef DEBUG
+  log_stream << "Fetching path...\n";
+  #endif
+  auto path = xdg::get_data_path(b, n, p);
+  if (!path) {
+    #ifdef DEBUG
+    log_stream << "[w] `" << p << "` not found...\n";
+    #endif
+
+    return "";
+  }
+
+  #ifdef DEBUG
+  log_stream << "--> " << *path << "\n";
+  #endif
+
+  return *path;
+}
+
+std::string load_string_from_file(
+  const xdg::base &b, const std::string &n, const std::string &p
+  #ifdef DEBUG
+  , fio::log_stream_f &log_stream
+  #endif
+) {
+  #ifdef DEBUG
+  log_stream << "Loading file: " << p << "\n";
+  #endif
+
+  std::string path = get_path(b, n, p
+    #ifdef DEBUG
+    , log_stream
+    #endif
+  );
+  auto data = fio::read(path);
+  if (!data) {
+    #ifdef DEBUG
+    log_stream << "[w] Could not read file...\n";
+    #endif
+
+    return "";
+  }
+
+  return *data;
+}
+
+Texture load_texture_from_file(
+  const xdg::base &b, const std::string &n, const std::string &p
+  #ifdef DEBUG
+  , fio::log_stream_f &log_stream
+  #endif
+) {
+  #ifdef DEBUG
+  log_stream << "Loading file: " << p << "\n";
+  #endif
+
+  std::string path = get_path(b, n, p
+    #ifdef DEBUG
+    , log_stream
+    #endif
+  );
+
+  return loadTexture(path.c_str());
+}
+
+std::array<glm::mat4, 3> fullscreen_rect_matrices(const int w, const int h) {
+  glm::mat4 projection = glm::ortho<double>(0, w, 0, h, 0.1, 100.0);
+
+  glm::mat4 view = glm::mat4(1.0);
+  view = glm::translate(view, glm::vec3(0.0, 0.0, -1.0));
+
+  glm::mat4 model = glm::mat4(1.0);
+  model = glm::scale(model, glm::vec3(w, h, 1));
+
+  return {projection, view, model};
 }

@@ -1,2 +1,1 @@
-include/glad.h linguist-vendored
-include/khrplatform.h linguist-vendored
+include/* linguist-vendored
