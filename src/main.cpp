@@ -11,11 +11,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "error.hpp"
-#include "file_io.hpp"
-#include "shader_program.hpp"
-#include "window.hpp"
-#include "xdg.hpp"
+#include "gl/shader_program.hpp"
+#include "gl/window.hpp"
+#include "util/error.hpp"
+#include "util/file_io.hpp"
+#include "util/xdg.hpp"
 
 const int window_width = 640;
 const int window_height = 480;
@@ -38,7 +38,6 @@ int main(int argc, const char *argv[]) {
 
   log_stream << "Attempting to create context: ";
   log_stream << gl_major_version << "." << gl_minor_version << "...\n";
-
 
   if (window == nullptr) {
     log_stream << "failed to create window\n";
