@@ -13,6 +13,7 @@ namespace fio {
     const bool trunc=false
   );
 
+  #ifdef DEBUG
   class log_stream_f {
   public:
     log_stream_f(const std::string &s, const bool no_buf=false);
@@ -21,13 +22,16 @@ namespace fio {
   private:
     std::ofstream ofs;
   };
+  #endif
 };
 
+#ifdef DEBUG
 template<typename T>
 std::ofstream &fio::log_stream_f::operator<<(const T t) {
   ofs << t;
 
   return ofs;
 }
+#endif
 
 #endif // __FILE_IO_HPP__

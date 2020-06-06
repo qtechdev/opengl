@@ -15,4 +15,8 @@ GLuint createProgram(
 std::optional<std::string> getCompileStatus(const GLuint shader);
 std::optional<std::string> getLinkStatus(const GLuint program);
 
+void uniformMatrix4fv(
+  const GLuint program, const char *name, const GLfloat *matrix
+);
+
 #endif // __SHADER_PROGRAM_HPP__

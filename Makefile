@@ -9,6 +9,13 @@ CXX_FLAGS=-std=c++17 -I./include
 NAME=opengl
 BINARY=out/${NAME}
 
+ifdef DEBUG
+CXX_FLAGS += -g -DDEBUG
+endif
+ifndef DEBUG
+CXX_FLAGS += -O2
+endif
+
 all: dirs ${BINARY}
 
 ${BINARY}: ${OBJECTS}

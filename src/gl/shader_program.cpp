@@ -62,3 +62,10 @@ std::optional<std::string> getLinkStatus(const GLuint program) {
 
   return {};
 }
+
+void uniformMatrix4fv(
+  const GLuint program, const char *name, const GLfloat *matrix
+) {
+  GLuint loc = glGetUniformLocation(program, name);
+  glUniformMatrix4fv(loc, 1, GL_FALSE, matrix);
+}

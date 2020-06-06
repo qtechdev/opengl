@@ -77,7 +77,7 @@ std::optional<xdg::path> xdg::get_data_path(
 ) {
   path home_path = b.xdg_data_home / name / p;
   if (fs::is_regular_file(home_path)) {
-    return home_path;
+    return fs::canonical(home_path);
   }
 
   if (create) {
@@ -86,19 +86,19 @@ std::optional<xdg::path> xdg::get_data_path(
       std::ofstream(home_path);
     }
 
-    return home_path;
+    return fs::canonical(home_path);
   }
 
   for (const auto &dir : b.xdg_data_dirs) {
     path system_path = dir / name / p;
     if (fs::is_regular_file(system_path)) {
-      return system_path;
+      return fs::canonical(system_path);
     }
   }
 
   path cwd_path = path("./data") / p;
   if (fs::is_regular_file(cwd_path)) {
-    return cwd_path;
+    return fs::canonical(cwd_path);
   }
 
   return {};

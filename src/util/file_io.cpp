@@ -45,6 +45,7 @@ bool fio::write(
   return false;
 }
 
+#ifdef DEBUG
 fio::log_stream_f::log_stream_f(const std::string &s, const bool no_buf) {
   if (no_buf) { ofs.rdbuf()->pubsetbuf(0, 0); }
   ofs.open(s, std::ios::out | std::ios::app);
@@ -54,3 +55,4 @@ fio::log_stream_f::log_stream_f(const std::string &s, const bool no_buf) {
   ofs << std::string(79, '=') << "\n";
   ofs << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S") << "\n";
 }
+#endif
