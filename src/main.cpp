@@ -8,6 +8,9 @@
 #include "glad.h"
 #include <GLFW/glfw3.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include "error.hpp"
 #include "file_io.hpp"
 #include "shader_program.hpp"
@@ -21,7 +24,6 @@ const int gl_major_version = 3;
 const int gl_minor_version = 3;
 
 void processInput(GLFWwindow *window);
-
 
 int main(int argc, const char *argv[]) {
   xdg::base base_dirs = xdg::get_base_directories();
@@ -64,14 +66,14 @@ int main(int argc, const char *argv[]) {
   glViewport(0, 0, window_width, window_height);
   glClearColor(0.1, 0.1, 0.2, 1.0);
 
-  auto vs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/vshader.glsl");
+  auto vs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/tex/vshader.glsl");
   if (!vs_path) { log_stream << "vertex shader not found"; }
   auto vs_data = fio::read(*vs_path);
   if (!vs_data) { log_stream << "could not read vertex shader"; }
   std::string v_shader_string = *vs_data;
   log_stream << "loading vertex shader ...\n--> " << *vs_path << "\n";
 
-  auto fs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/fshader.glsl");
+  auto fs_path = xdg::get_data_path(base_dirs, "qogl", "shaders/tex/fshader.glsl");
   if (!fs_path) { log_stream << "fragment shader not found"; }
   auto fs_data = fio::read(*fs_path);
   if (!fs_data) { log_stream << "could not read fragment shader"; }
@@ -104,37 +106,43 @@ int main(int argc, const char *argv[]) {
 
   glUseProgram(shader_program);
 
-  std::vector<GLfloat> vertices = {
-    /*      a
-           /\
-        b /__\ c
-         /\  /\
-        /__\/__\
-       d   e   f
+  const std::vector<GLfloat> vertices = {
+    /*
+      a____d
+      |\  |
+      | \ |
+      |__\|
+     b    c
     */
 
-     0.0,   0.5, 0.0, // a
-    -0.25,  0.0, 0.0, // b
-     0.25,  0.0, 0.0, // c
-    -0.5,  -0.5, 0.0, // d
-     0.0,  -0.5, 0.0, // e
-     0.5,  -0.5, 0.0  // f
+    -0.5,   0.5, 0.0, // a
+    -0.5,  -0.5, 0.0, // b
+     0.5,  -0.5, 0.0, // c
+     0.5,   0.5, 0.0  // d
   };
 
-  std::vector<GLfloat> colours = {
+  const std::vector<GLfloat> colours = {
     1.0, 0.0, 0.0, // a
-    0.5, 0.5, 0.0, // b
-    0.5, 0.0, 0.5, // c
-    0.0, 1.0, 0.0, // d
-    0.0, 0.5, 0.5, // e
-    0.0, 0.0, 1.0  // f
+    0.0, 1.0, 0.0, // b
+    0.0, 0.0, 1.0, // c
+    1.0, 1.0, 0.0  // d
   };
 
-  std::vector<GLuint> indices = {
-    0, 1, 2,
-    1, 3, 4,
-    2, 4, 5
+  const std::vector<GLfloat> texture_coords = {
+    0.0, 1.0,
+    0.0, 0.0,
+    1.0, 0.0,
+    1.0, 1.0
   };
+
+  const std::vector<GLuint> indices = {
+    0, 1, 2,
+    0, 2, 3
+  };
+
+  const std::size_t vert_size = vertices.size();
+  const std::size_t col_size = colours.size();
+  const std::size_t tex_size = texture_coords.size();
 
   GLuint vao;
   glGenVertexArrays(1, &vao);
@@ -144,16 +152,36 @@ int main(int argc, const char *argv[]) {
   glGenBuffers(1, &vbo);
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glBufferData(
-    GL_ARRAY_BUFFER, (vertices.size() + colours.size())*sizeof(GLfloat),
+    GL_ARRAY_BUFFER, (vert_size + col_size + tex_size)*sizeof(GLfloat),
     nullptr, GL_STATIC_DRAW
   );
   glBufferSubData(
     GL_ARRAY_BUFFER, 0,
-    vertices.size()*sizeof(GLfloat), vertices.data()
+    vert_size*sizeof(GLfloat), vertices.data()
   );
   glBufferSubData(
-    GL_ARRAY_BUFFER, vertices.size()*sizeof(GLfloat),
-    colours.size()*sizeof(GLfloat), colours.data()
+    GL_ARRAY_BUFFER, vert_size*sizeof(GLfloat),
+    col_size*sizeof(GLfloat), colours.data()
+  );
+  glBufferSubData(
+    GL_ARRAY_BUFFER, (vert_size + col_size)*sizeof(GLfloat),
+    tex_size*sizeof(GLfloat), texture_coords.data()
+  );
+
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(
+    0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
+    reinterpret_cast<void *>(0)
+  );
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(
+    1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
+    reinterpret_cast<void *>(vert_size*sizeof(GLfloat))
+  );
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(
+    2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat),
+    reinterpret_cast<void *>((vert_size + col_size)*sizeof(GLfloat))
   );
 
   GLuint ebo;
@@ -164,16 +192,29 @@ int main(int argc, const char *argv[]) {
     GL_STATIC_DRAW
   );
 
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(
-    0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
-    (void*)(0)
+  auto texture_path = xdg::get_data_path(base_dirs, "qogl", "textures/wood.jpg");
+  if (!texture_path) { log_stream << "texture not found"; }
+  log_stream << "loading texture ...\n--> " << *texture_path << "\n";
+  int width;
+  int height;
+  int channels;
+  unsigned char *data = stbi_load(texture_path->c_str(), &width, &height, &channels, 0);
+  if (data == nullptr) { log_stream << "could not read texture"; }
+
+  GLuint texture;
+  glGenTextures(1, &texture);
+  glBindTexture(GL_TEXTURE_2D, texture);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  glTexImage2D(
+    GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
   );
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(
-    1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
-    (void*)(vertices.size()*sizeof(GLfloat))
-  );
+  stbi_image_free(data);
+
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -181,8 +222,9 @@ int main(int argc, const char *argv[]) {
     processInput(window);
 
     glUseProgram(shader_program);
+    glBindTexture(GL_TEXTURE_2D, texture);
     glBindVertexArray(vao);
-    glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     glfwSwapBuffers(window);
   }
