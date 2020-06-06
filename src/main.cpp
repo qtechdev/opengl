@@ -12,11 +12,9 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
 #include "gl/rect.hpp"
 #include "gl/shader_program.hpp"
+#include "gl/texture.hpp"
 #include "gl/window.hpp"
 #include "util/error.hpp"
 #include "util/file_io.hpp"
@@ -115,26 +113,7 @@ int main(int argc, const char *argv[]) {
   auto texture_path = xdg::get_data_path(base_dirs, "qogl", "textures/wood.jpg");
   if (!texture_path) { log_stream << "texture not found"; }
   log_stream << "loading texture ...\n--> " << *texture_path << "\n";
-  int width;
-  int height;
-  int channels;
-  stbi_set_flip_vertically_on_load(true);
-  unsigned char *data = stbi_load(texture_path->c_str(), &width, &height, &channels, 0);
-  if (data == nullptr) { log_stream << "could not read texture"; }
-
-  GLuint texture;
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-  glTexImage2D(
-    GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
-  );
-  stbi_image_free(data);
+  Texture texture = loadTexture(texture_path->c_str());
 
   glm::mat4 projection = glm::ortho<double>(
     0, window_width,
@@ -161,8 +140,7 @@ int main(int argc, const char *argv[]) {
     processInput(window);
 
     glUseProgram(shader_program);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
+    bindTexture(texture);
     drawRect(rect);
 
     glfwSwapBuffers(window);
