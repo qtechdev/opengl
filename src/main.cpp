@@ -15,6 +15,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "gl/rect.hpp"
 #include "gl/shader_program.hpp"
 #include "gl/window.hpp"
 #include "util/error.hpp"
@@ -109,91 +110,7 @@ int main(int argc, const char *argv[]) {
 
   glUseProgram(shader_program);
 
-  const std::vector<GLfloat> vertices = {
-    /*
-      a____d
-      |\  |
-      | \ |
-      |__\|
-     b    c
-    */
-
-    0.0, 1.0, 0.0, // a
-    0.0, 0.0, 0.0, // b
-    1.0, 0.0, 0.0, // c
-    1.0, 1.0, 0.0  // d
-  };
-
-  const std::vector<GLfloat> colours = {
-    1.0, 0.0, 0.0, // a
-    0.0, 1.0, 0.0, // b
-    0.0, 0.0, 1.0, // c
-    1.0, 1.0, 0.0  // d
-  };
-
-  const std::vector<GLfloat> texture_coords = {
-    0.0, 1.0,
-    0.0, 0.0,
-    1.0, 0.0,
-    1.0, 1.0
-  };
-
-  const std::vector<GLuint> indices = {
-    0, 1, 2,
-    0, 2, 3
-  };
-
-  const std::size_t vert_size = vertices.size();
-  const std::size_t col_size = colours.size();
-  const std::size_t tex_size = texture_coords.size();
-
-  GLuint vao;
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
-
-  GLuint vbo;
-  glGenBuffers(1, &vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(
-    GL_ARRAY_BUFFER, (vert_size + col_size + tex_size)*sizeof(GLfloat),
-    nullptr, GL_STATIC_DRAW
-  );
-  glBufferSubData(
-    GL_ARRAY_BUFFER, 0,
-    vert_size*sizeof(GLfloat), vertices.data()
-  );
-  glBufferSubData(
-    GL_ARRAY_BUFFER, vert_size*sizeof(GLfloat),
-    col_size*sizeof(GLfloat), colours.data()
-  );
-  glBufferSubData(
-    GL_ARRAY_BUFFER, (vert_size + col_size)*sizeof(GLfloat),
-    tex_size*sizeof(GLfloat), texture_coords.data()
-  );
-
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(
-    0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
-    reinterpret_cast<void *>(0)
-  );
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(
-    1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat),
-    reinterpret_cast<void *>(vert_size*sizeof(GLfloat))
-  );
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(
-    2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat),
-    reinterpret_cast<void *>((vert_size + col_size)*sizeof(GLfloat))
-  );
-
-  GLuint ebo;
-  glGenBuffers(1, &ebo);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-  glBufferData(
-    GL_ELEMENT_ARRAY_BUFFER, indices.size()*sizeof(GLuint), indices.data(),
-    GL_STATIC_DRAW
-  );
+  Rect rect = createRect();
 
   auto texture_path = xdg::get_data_path(base_dirs, "qogl", "textures/wood.jpg");
   if (!texture_path) { log_stream << "texture not found"; }
@@ -245,8 +162,8 @@ int main(int argc, const char *argv[]) {
 
     glUseProgram(shader_program);
     glBindTexture(GL_TEXTURE_2D, texture);
-    glBindVertexArray(vao);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    drawRect(rect);
 
     glfwSwapBuffers(window);
   }
