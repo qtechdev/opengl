@@ -27,25 +27,22 @@ const int window_height = 480;
 const int gl_major_version = 3;
 const int gl_minor_version = 3;
 
+#ifdef DEBUG
+namespace xdg {
+  std::optional<xdg::path> get_data_path(
+    const xdg::base &b, const std::string &n, const std::string &p,
+    fio::log_stream_f &log_stream, const bool create=false
+  );
+}
+namespace fio {
+  std::optional<xdg::path> read(
+    const xdg::path &path, fio::log_stream_f &log_stream
+  );
+}
+Texture loadTexture(const xdg::path &path, fio::log_stream_f &log_stream);
+#endif
+
 void processInput(GLFWwindow *window);
-std::string get_path(
-  const xdg::base &b, const std::string &n, const std::string &p
-  #ifdef DEBUG
-  , fio::log_stream_f &log_stream
-  #endif
-);
-std::string load_string_from_file(
-  const xdg::base &b, const std::string &n, const std::string &p
-  #ifdef DEBUG
-  , fio::log_stream_f &log_stream
-  #endif
-);
-Texture load_texture_from_file(
-  const xdg::base &b, const std::string &n, const std::string &p
-  #ifdef DEBUG
-  , fio::log_stream_f &log_stream
-  #endif
-);
 std::array<glm::mat4, 3> fullscreen_rect_matrices(const int w, const int h);
 
 int main(int argc, const char *argv[]) {
@@ -54,7 +51,7 @@ int main(int argc, const char *argv[]) {
   #ifdef DEBUG
   auto log_path = xdg::get_data_path(base_dirs, "qogl", "logs/qogl.log", true);
   fio::log_stream_f log_stream(*log_path);
-  std::cout << "RUNNING IN DEBUG MODE" << std::endl;
+  std::cout << "RUNNING IN DEBUG MODE\nLOGGING TO " << *log_path << std::endl;
   #endif
 
   GLFWwindow *window = createWindow(
@@ -94,21 +91,24 @@ int main(int argc, const char *argv[]) {
   glViewport(0, 0, window_width, window_height);
   glClearColor(0.1, 0.1, 0.2, 1.0);
 
-  std::string v_shader_string = load_string_from_file(
+  auto v_shader_path = xdg::get_data_path(
     base_dirs, "qogl", "shaders/tex/vshader.glsl"
     #ifdef DEBUG
     , log_stream
     #endif
   );
-  std::string f_shader_string = load_string_from_file(
+  auto v_shader_string = fio::read(*v_shader_path);
+
+  auto f_shader_path = xdg::get_data_path(
     base_dirs, "qogl", "shaders/tex/fshader.glsl"
     #ifdef DEBUG
     , log_stream
     #endif
   );
+  auto f_shader_string = fio::read(*f_shader_path);
 
-  GLuint v_shader = createShader(GL_VERTEX_SHADER, v_shader_string);
-  GLuint f_shader = createShader(GL_FRAGMENT_SHADER, f_shader_string);
+  GLuint v_shader = createShader(GL_VERTEX_SHADER, *v_shader_string);
+  GLuint f_shader = createShader(GL_FRAGMENT_SHADER, *f_shader_string);
   #ifdef DEBUG
   const auto v_compile_error = getCompileStatus(v_shader);
   if (v_compile_error) {
@@ -135,13 +135,18 @@ int main(int argc, const char *argv[]) {
 
   Rect rect = createRect();
 
-  Texture texture = load_texture_from_file(
+  auto texture_path = xdg::get_data_path(
     base_dirs, "qogl", "textures/wood.jpg"
     #ifdef DEBUG
     , log_stream
     #endif
   );
-  // Texture texture = loadTexture(texture_path.c_str());
+  Texture texture = loadTexture(
+    texture_path->c_str()
+    #ifdef DEBUG
+    , log_stream
+    #endif
+  );
 
   auto [projection, view, model] = fullscreen_rect_matrices(
     window_width, window_height
@@ -171,77 +176,40 @@ void processInput(GLFWwindow *window) {
     glfwSetWindowShouldClose(window, true);
   }
 }
-
-std::string get_path(
-  const xdg::base &b, const std::string &n, const std::string &p
-  #ifdef DEBUG
-  , fio::log_stream_f &log_stream
-  #endif
+#ifdef DEBUG
+std::optional<xdg::path> xdg::get_data_path(
+  const xdg::base &b, const std::string &n, const std::string &p,
+  fio::log_stream_f &log_stream, const bool create
 ) {
-  #ifdef DEBUG
-  log_stream << "Fetching path...\n";
-  #endif
+  log_stream << "Fetching path: " << p << "\n";
   auto path = xdg::get_data_path(b, n, p);
   if (!path) {
-    #ifdef DEBUG
     log_stream << "[w] `" << p << "` not found...\n";
-    #endif
-
-    return "";
+  } else {
+    log_stream << "--> " << *path << "\n";
   }
 
-  #ifdef DEBUG
-  log_stream << "--> " << *path << "\n";
-  #endif
-
-  return *path;
+  return path;
 }
 
-std::string load_string_from_file(
-  const xdg::base &b, const std::string &n, const std::string &p
-  #ifdef DEBUG
-  , fio::log_stream_f &log_stream
-  #endif
+std::optional<xdg::path> fio::read(
+  const xdg::path &path, fio::log_stream_f &log_stream
 ) {
-  #ifdef DEBUG
-  log_stream << "Loading file: " << p << "\n";
-  #endif
-
-  std::string path = get_path(b, n, p
-    #ifdef DEBUG
-    , log_stream
-    #endif
-  );
+  log_stream << "Loading file: " << path << "\n";
   auto data = fio::read(path);
   if (!data) {
-    #ifdef DEBUG
     log_stream << "[w] Could not read file...\n";
-    #endif
-
-    return "";
   }
 
-  return *data;
+  return data;
 }
 
-Texture load_texture_from_file(
-  const xdg::base &b, const std::string &n, const std::string &p
-  #ifdef DEBUG
-  , fio::log_stream_f &log_stream
-  #endif
-) {
-  #ifdef DEBUG
-  log_stream << "Loading file: " << p << "\n";
-  #endif
-
-  std::string path = get_path(b, n, p
-    #ifdef DEBUG
-    , log_stream
-    #endif
-  );
+Texture loadTexture(const xdg::path &path, fio::log_stream_f &log_stream) {
+  log_stream << "Loading texture: " << path << "\n";
 
   return loadTexture(path.c_str());
 }
+#endif
 
 std::array<glm::mat4, 3> fullscreen_rect_matrices(const int w, const int h) {
   glm::mat4 projection = glm::ortho<double>(0, w, 0, h, 0.1, 100.0);
