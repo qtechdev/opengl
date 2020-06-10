@@ -27,6 +27,10 @@ const int window_height = 480;
 const int gl_major_version = 3;
 const int gl_minor_version = 3;
 
+int map(const double x, const double n, const double m) {
+  return (x / n) * m;
+}
+
 #ifdef DEBUG
 namespace xdg {
   std::optional<xdg::path> get_data_path(
@@ -135,6 +139,8 @@ int main(int argc, const char *argv[]) {
 
   Rect rect = createRect();
 
+  // #define TEXTURE
+  #ifdef TEXTURE
   auto texture_path = xdg::get_data_path(
     base_dirs, "qogl", "textures/wood.jpg"
     #ifdef DEBUG
@@ -147,6 +153,27 @@ int main(int argc, const char *argv[]) {
     , log_stream
     #endif
   );
+  #else
+  constexpr std::size_t num_cols = 64;
+  constexpr std::size_t num_rows = 48;
+  constexpr std::size_t num_channels = 3;
+  constexpr std::size_t image_stride = num_cols * num_channels;
+  constexpr std::size_t data_size = num_cols*num_rows*num_channels;
+  unsigned char data[num_cols*num_rows*num_channels];
+
+  for (int row = 0; row < num_rows; row++) {
+    for (int col = 0; col < (image_stride); col += num_channels) {
+      std::size_t pixel_index = (row * image_stride) + col;
+      data[pixel_index] = map(col, image_stride, 200);
+      data[pixel_index + 1] = 0;
+      data[pixel_index + 2] = map(pixel_index, data_size, 200);
+    }
+  }
+
+  Texture texture = create_texture_from_data(
+    num_cols, num_rows, num_channels, data
+  );
+  #endif
 
   auto [projection, view, model] = fullscreen_rect_matrices(
     window_width, window_height
