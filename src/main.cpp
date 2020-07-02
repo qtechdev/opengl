@@ -3,6 +3,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -19,13 +20,20 @@
 #include "gl/window.hpp"
 #include "util/error.hpp"
 #include "util/file_io.hpp"
+#include "util/timer.hpp"
 #include "util/xdg.hpp"
 
-const int window_width = 640;
-const int window_height = 480;
+#include "point.hpp"
 
-const int gl_major_version = 3;
-const int gl_minor_version = 3;
+static constexpr int window_width = 640;
+static constexpr int window_height = 480;
+
+static constexpr int gl_major_version = 3;
+static constexpr int gl_minor_version = 3;
+
+static constexpr timing::seconds timer_timestep(1.0/60.0);
+static constexpr int simulation_speed = 100;
+static constexpr int num_points = 50;
 
 int map(const double x, const double n, const double m) {
   return (x / n) * m;
@@ -96,7 +104,7 @@ int main(int argc, const char *argv[]) {
   glClearColor(0.1, 0.1, 0.2, 1.0);
 
   auto v_shader_path = xdg::get_data_path(
-    base_dirs, "qogl", "shaders/tex/vshader.glsl"
+    base_dirs, "qogl", "shaders/mvp/vshader.glsl"
     #ifdef DEBUG
     , log_stream
     #endif
@@ -104,7 +112,7 @@ int main(int argc, const char *argv[]) {
   auto v_shader_string = fio::read(*v_shader_path);
 
   auto f_shader_path = xdg::get_data_path(
-    base_dirs, "qogl", "shaders/tex/fshader.glsl"
+    base_dirs, "qogl", "shaders/mvp/fshader.glsl"
     #ifdef DEBUG
     , log_stream
     #endif
@@ -139,49 +147,45 @@ int main(int argc, const char *argv[]) {
 
   Rect rect = createRect();
 
-  // #define TEXTURE
-  #ifdef TEXTURE
-  auto texture_path = xdg::get_data_path(
-    base_dirs, "qogl", "textures/wood.jpg"
-    #ifdef DEBUG
-    , log_stream
-    #endif
-  );
-  Texture texture = loadTexture(
-    texture_path->c_str()
-    #ifdef DEBUG
-    , log_stream
-    #endif
-  );
-  #else
-  constexpr std::size_t num_cols = 64;
-  constexpr std::size_t num_rows = 48;
-  constexpr std::size_t num_channels = 3;
-  constexpr std::size_t image_stride = num_cols * num_channels;
-  constexpr std::size_t data_size = num_cols*num_rows*num_channels;
-  unsigned char data[num_cols*num_rows*num_channels];
-
-  for (int row = 0; row < num_rows; row++) {
-    for (int col = 0; col < (image_stride); col += num_channels) {
-      std::size_t pixel_index = (row * image_stride) + col;
-      data[pixel_index] = map(col, image_stride, 200);
-      data[pixel_index + 1] = 0;
-      data[pixel_index + 2] = map(pixel_index, data_size, 200);
-    }
-  }
-
-  Texture texture = create_texture_from_data(
-    num_cols, num_rows, num_channels, data
-  );
-  #endif
-
   auto [projection, view, model] = fullscreen_rect_matrices(
     window_width, window_height
   );
 
+  std::random_device rd;
+  std::mt19937 engine(rd());
+  std::uniform_int_distribution<> x_distribution(10, window_width - 10);
+  std::uniform_int_distribution<> y_distribution(10, window_height - 10);
+  std::uniform_real_distribution<> mass_disribution(0.0, 1.0);
+  std::uniform_real_distribution<> velocity_distribution(0.0, 1.0);
+
+  std::vector<Point> points;
+  for (int i = 0; i < num_points; ++i) {
+    Point p;
+    p.position = {
+      x_distribution(engine),
+      y_distribution(engine)
+    };
+    p.mass = mass_disribution(engine);
+    p.velocity = {
+      velocity_distribution(engine),
+      velocity_distribution(engine)
+    };
+    points.push_back(p);
+  }
+
+  // Point p;
+  // p.position = {10, 10};
+  // points.push_back(p);
+  // Point q;
+  // q.position = {20, 10};
+  // points.push_back(q);
+
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
   uniformMatrix4fv(shader_program, "view", glm::value_ptr(view));
-  uniformMatrix4fv(shader_program, "model", glm::value_ptr(model));
+
+  timing::Clock clock;
+  timing::Timer timer_timer;
+  timing::seconds timer_accumulator(0.0);
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -189,8 +193,52 @@ int main(int argc, const char *argv[]) {
     processInput(window);
 
     glUseProgram(shader_program);
-    bindTexture(texture);
-    drawRect(rect);
+
+    timer_accumulator += timer_timer.getDelta();
+    timer_timer.tick(clock.get());
+    while (timer_accumulator >= timer_timestep) {
+      for (int i = 0; i < simulation_speed; ++i) {
+        for (auto &p : points) {
+          attract(p, points);
+          updateVelocity(p, timer_timestep.count());
+        }
+
+        for (auto &p : points) {
+          auto collisions = checkCollisions(p, points);
+          if (collisions) {
+            std::cout << "COLLISION\n";
+          }
+        }
+
+        for (auto &p : points) {
+          updatePosition(p, timer_timestep.count());
+          if (p.position.x < 0) {
+            p.position.x = 1;
+            p.velocity.x *= -1;
+          } else if (p.position.x > window_width) {
+            p.position.x = window_width - 1;
+            p.velocity.x *= -1;
+          }
+          if (p.position.y < 0) {
+            p.position.y = 1;
+            p.velocity.y *= -1;
+          } else if (p.position.y > window_height) {
+            p.position.y = window_height - 1;
+            p.velocity.y *= -1;
+          }
+        }
+      }
+
+      timer_accumulator -= timer_timestep;
+    }
+
+    for (auto &box : points) {
+      glm::mat4 m = glm::mat4(1.0);
+      m = glm::translate(m, glm::vec3(box.position, 0.0));
+      m = glm::scale(m, glm::vec3(box.size, 0.0));
+      uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
+      drawRect(rect);
+    }
 
     glfwSwapBuffers(window);
   }
