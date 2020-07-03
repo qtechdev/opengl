@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <ctime>
@@ -32,7 +33,7 @@ static constexpr int gl_major_version = 3;
 static constexpr int gl_minor_version = 3;
 
 static constexpr timing::seconds timer_timestep(1.0/60.0);
-static constexpr int simulation_speed = 100;
+static constexpr int simulation_speed = 10;
 static constexpr int num_points = 50;
 
 int map(const double x, const double n, const double m) {
@@ -155,7 +156,7 @@ int main(int argc, const char *argv[]) {
   std::mt19937 engine(rd());
   std::uniform_int_distribution<> x_distribution(10, window_width - 10);
   std::uniform_int_distribution<> y_distribution(10, window_height - 10);
-  std::uniform_real_distribution<> mass_disribution(0.0, 1.0);
+  std::uniform_real_distribution<> mass_disribution(1.0, 10.0);
   std::uniform_real_distribution<> velocity_distribution(0.0, 1.0);
 
   std::vector<Point> points;
@@ -170,15 +171,9 @@ int main(int argc, const char *argv[]) {
       velocity_distribution(engine),
       velocity_distribution(engine)
     };
+    p.size = glm::vec2(std::sqrt(p.mass));
     points.push_back(p);
   }
-
-  // Point p;
-  // p.position = {10, 10};
-  // points.push_back(p);
-  // Point q;
-  // q.position = {20, 10};
-  // points.push_back(q);
 
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
   uniformMatrix4fv(shader_program, "view", glm::value_ptr(view));
@@ -203,9 +198,28 @@ int main(int argc, const char *argv[]) {
           updateVelocity(p, timer_timestep.count());
         }
 
-        for (auto &p : points) {
+        for (int i = points.size() - 1; i >= 0; --i) {
+          Point &p = points[i];
           auto collisions = checkCollisions(p, points);
           if (collisions) {
+            for (Point *q : *collisions) {
+              p.mass += q->mass;
+              p.size = glm::vec2(std::sqrt(p.mass));
+
+              double total_mass = p.mass + q->mass;
+              p.velocity = (
+                (p.velocity * glm::vec2((p.mass / total_mass))) +
+                (q->velocity * glm::vec2((q->mass / total_mass)))
+              );
+              q->is_alive = false;
+            }
+
+            auto it = std::remove_if(
+              points.begin(), points.end(),
+              [](const Point &p){ return !p.is_alive; }
+            );
+            points.erase(it, points.end());
+
             std::cout << "COLLISION\n";
           }
         }

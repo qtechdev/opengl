@@ -17,8 +17,20 @@ bool Point::operator==(const Point &rhs) const {
 }
 
 double dist_sq(const Point &p, const Point &q) {
-  const double dx = p.position.x - q.position.x;
-  const double dy = p.position.y - q.position.y;
+  // boxes; left, right, bottom, top
+  Point lb = (p.position.x < q.position.x) ? p : q;
+  Point rb = (lb == q) ? p : q;
+  Point bb = (p.position.y < q.position.y) ? p : q;
+  Point tb = (bb == q) ? p : q;
+
+  // extents; right, left, top, bottom
+  double re = lb.position.x + lb.size.x;
+  double le = rb.position.x;
+  double te = bb.position.y + bb.size.y;
+  double be = tb.position.y;
+
+  double dx = re - le;
+  double dy = te - be;
   return (dx * dx) + (dy * dy);
 }
 
@@ -59,7 +71,24 @@ void updatePosition(Point &p, const double dt) {
   p.position = p.next_position;
 }
 
-int orientation(glm::vec2 p, glm::vec2 q, glm::vec2 r) {
+bool intersectAABB(
+  const glm::vec2 &p_pos, const glm::vec2 &p_size,
+  const glm::vec2 &q_pos, const glm::vec2 &q_size
+) {
+  return (
+    // p's left edge is to the left of q's right edge
+    p_pos.x > (q_pos.x + q_size.x) &&
+    // p's right edge is to the right of q's left edge
+    (p_pos.x + p_size.x) < q_pos.x &&
+    // p's bottom edge is to the bottom of q's top edge
+    p_pos.y > (q_pos.y + q_size.y) &&
+    // p's top edge is to the top of q's bottom edge
+    (p_pos.y + p_size.y) < q_pos.y
+  );
+
+}
+
+int orientation(const glm::vec2 &p, const glm::vec2 &q, const glm::vec2 &r) {
   /*
   0 = co-linear
   1 = clockwise
@@ -71,16 +100,16 @@ int orientation(glm::vec2 p, glm::vec2 q, glm::vec2 r) {
   return (val > 0) ? 1 : -1;
 }
 
-bool onSegment(glm::vec2 p, glm::vec2 x, glm::vec2 q) {
+bool onSegment(const glm::vec2 &p, const glm::vec2 &r, const glm::vec2 &q) {
   return (
-    (x.x <= std::max(p.x, q.x)) &&
-    (x.x >= std::min(p.x, q.x)) &&
-    (x.y <= std::max(p.y, q.y)) &&
-    (x.y >= std::min(p.y, q.y))
+    (r.x <= std::max(p.x, q.x)) &&
+    (r.x >= std::min(p.x, q.x)) &&
+    (r.y <= std::max(p.y, q.y)) &&
+    (r.y >= std::min(p.y, q.y))
   );
 }
 
-bool checkIntersect(
+bool intersectLine(
   const glm::vec2 &p_pos, const glm::vec2 &p_next,
   const glm::vec2 &q_pos, const glm::vec2 &q_next
 ) {
@@ -110,10 +139,10 @@ bool checkIntersect(
   );
 }
 
-std::optional<std::vector<const Point *>> checkCollisions(
-  Point &p, const std::vector<Point> &points
+std::optional<std::vector<Point *>> checkCollisions(
+  Point &p, std::vector<Point> &points
 ) {
-  std::vector<const Point *> collided;
+  std::vector<Point *> collided;
 
   for (auto &q : points) {
     if (p == q) {
@@ -122,7 +151,8 @@ std::optional<std::vector<const Point *>> checkCollisions(
 
     if (
       (dist_sq(p, q) <= 2) ||
-      checkIntersect(p.position, p.next_position, q.position, q.next_position)
+      intersectAABB(p.position, p.size, q.position, q.size) ||
+      intersectLine(p.position, p.next_position, q.position, q.next_position)
     ) {
      collided.push_back(&q);
     }

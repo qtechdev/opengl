@@ -12,11 +12,12 @@ struct Point {
 
   glm::vec2 position={0.0, 0.0};
   glm::vec2 next_position={0.0, 0.0};
-  static constexpr glm::vec2 size={1.0, 1.0};
+  glm::vec2 size={1.0, 1.0};
 
   glm::vec2 velocity={0.0, 0.0};
   glm::vec2 acceleration={0.0, 0.0};
   double mass=1;
+  bool is_alive=true;
 
   bool operator==(const Point &rhs) const;
   bool operator!=(const Point &rhs) const { return !(*this == rhs); }
@@ -31,8 +32,8 @@ void attract(
 void updateVelocity(Point &p, const double dt);
 void updatePosition(Point &p, const double dt);
 
-std::optional<std::vector<const Point *>> checkCollisions(
-  Point &p, const std::vector<Point> &points
+std::optional<std::vector<Point *>> checkCollisions(
+  Point &p, std::vector<Point> &points
 );
 
 #endif // __POINT_HPP__
