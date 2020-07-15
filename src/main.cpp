@@ -156,8 +156,8 @@ int main(int argc, const char *argv[]) {
   std::mt19937 engine(rd());
   std::uniform_int_distribution<> x_distribution(10, window_width - 10);
   std::uniform_int_distribution<> y_distribution(10, window_height - 10);
-  std::uniform_real_distribution<> mass_disribution(1.0, 10.0);
-  std::uniform_real_distribution<> velocity_distribution(0.0, 1.0);
+  std::uniform_real_distribution<> mass_disribution(1.0, 1.0);
+  std::uniform_real_distribution<> velocity_distribution(-10.0, 10.0);
 
   std::vector<AABB> aabbs;
   for (int i = 0; i < num_aabbs; ++i) {
