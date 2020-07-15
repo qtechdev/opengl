@@ -24,7 +24,7 @@
 #include "util/timer.hpp"
 #include "util/xdg.hpp"
 
-#include "point.hpp"
+#include "primitives/2d.hpp"
 
 static constexpr int window_width = 640;
 static constexpr int window_height = 480;
@@ -34,7 +34,7 @@ static constexpr int gl_minor_version = 3;
 
 static constexpr timing::seconds timer_timestep(1.0/60.0);
 static constexpr int simulation_speed = 10;
-static constexpr int num_points = 50;
+static constexpr int num_aabbs = 50;
 
 int map(const double x, const double n, const double m) {
   return (x / n) * m;
@@ -159,9 +159,9 @@ int main(int argc, const char *argv[]) {
   std::uniform_real_distribution<> mass_disribution(1.0, 10.0);
   std::uniform_real_distribution<> velocity_distribution(0.0, 1.0);
 
-  std::vector<Point> points;
-  for (int i = 0; i < num_points; ++i) {
-    Point p;
+  std::vector<AABB> aabbs;
+  for (int i = 0; i < num_aabbs; ++i) {
+    AABB p;
     p.position = {
       x_distribution(engine),
       y_distribution(engine)
@@ -172,7 +172,7 @@ int main(int argc, const char *argv[]) {
       velocity_distribution(engine)
     };
     p.size = glm::vec2(std::sqrt(p.mass));
-    points.push_back(p);
+    aabbs.push_back(p);
   }
 
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
@@ -193,16 +193,16 @@ int main(int argc, const char *argv[]) {
     timer_timer.tick(clock.get());
     while (timer_accumulator >= timer_timestep) {
       for (int i = 0; i < simulation_speed; ++i) {
-        for (auto &p : points) {
-          attract(p, points);
+        for (auto &p : aabbs) {
+          attract(p, aabbs);
           updateVelocity(p, timer_timestep.count());
         }
 
-        for (int i = points.size() - 1; i >= 0; --i) {
-          Point &p = points[i];
-          auto collisions = checkCollisions(p, points);
+        for (int i = aabbs.size() - 1; i >= 0; --i) {
+          AABB &p = aabbs[i];
+          auto collisions = checkCollisions(p, aabbs);
           if (collisions) {
-            for (Point *q : *collisions) {
+            for (AABB *q : *collisions) {
               p.mass += q->mass;
               p.size = glm::vec2(std::sqrt(p.mass));
 
@@ -215,29 +215,29 @@ int main(int argc, const char *argv[]) {
             }
 
             auto it = std::remove_if(
-              points.begin(), points.end(),
-              [](const Point &p){ return !p.is_alive; }
+              aabbs.begin(), aabbs.end(),
+              [](const AABB &p){ return !p.is_alive; }
             );
-            points.erase(it, points.end());
+            aabbs.erase(it, aabbs.end());
 
             std::cout << "COLLISION\n";
           }
         }
 
-        for (auto &p : points) {
+        for (auto &p : aabbs) {
           updatePosition(p, timer_timestep.count());
           if (p.position.x < 0) {
             p.position.x = 1;
             p.velocity.x *= -1;
-          } else if (p.position.x > window_width) {
-            p.position.x = window_width - 1;
+          } else if (p.position.x > (window_width - p.size.x)) {
+            p.position.x = window_width - p.size.x;
             p.velocity.x *= -1;
           }
           if (p.position.y < 0) {
             p.position.y = 1;
             p.velocity.y *= -1;
-          } else if (p.position.y > window_height) {
-            p.position.y = window_height - 1;
+          } else if (p.position.y > (window_height - p.size.y)) {
+            p.position.y = window_height - p.size.y;
             p.velocity.y *= -1;
           }
         }
@@ -246,7 +246,7 @@ int main(int argc, const char *argv[]) {
       timer_accumulator -= timer_timestep;
     }
 
-    for (auto &box : points) {
+    for (auto &box : aabbs) {
       glm::mat4 m = glm::mat4(1.0);
       m = glm::translate(m, glm::vec3(box.position, 0.0));
       m = glm::scale(m, glm::vec3(box.size, 0.0));

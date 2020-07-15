@@ -1,4 +1,4 @@
-SOURCES=$(wildcard src/*.cpp) $(wildcard src/*/*.cpp)
+SOURCES=$(wildcard src/*.cpp) $(wildcard src/*/*.cpp) $(wildcard src/*/*/*.cpp)
 OBJECTS=$(patsubst src/%,build/%,${SOURCES:.cpp=.o})
 DIRS=$(filter-out build/,$(sort $(dir ${OBJECTS})))
 
