@@ -32,7 +32,8 @@ static constexpr int window_height = 480;
 static constexpr int gl_major_version = 3;
 static constexpr int gl_minor_version = 3;
 
-static constexpr timing::seconds timer_timestep(1.0/60.0);
+static constexpr timing::seconds physics_timestep(1.0/60.0);
+static constexpr timing::seconds output_timestep(1.0);
 static constexpr int simulation_speed = 10;
 static constexpr int num_aabbs = 50;
 
@@ -178,9 +179,15 @@ int main(int argc, const char *argv[]) {
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
   uniformMatrix4fv(shader_program, "view", glm::value_ptr(view));
 
-  timing::Clock clock;
-  timing::Timer timer_timer;
-  timing::seconds timer_accumulator(0.0);
+  timing::Clock physics_clock;
+  timing::Timer physics_timer;
+  timing::seconds physics_accumulator(0.0);
+
+  timing::Clock output_clock;
+  timing::Timer output_timer;
+  timing::seconds output_accumulator(0.0);
+
+  int collision_checks = 0;
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -189,18 +196,20 @@ int main(int argc, const char *argv[]) {
 
     glUseProgram(shader_program);
 
-    timer_accumulator += timer_timer.getDelta();
-    timer_timer.tick(clock.get());
-    while (timer_accumulator >= timer_timestep) {
+    physics_accumulator += physics_timer.getDelta();
+    physics_timer.tick(physics_clock.get());
+
+    while (physics_accumulator >= physics_timestep) {
       for (int i = 0; i < simulation_speed; ++i) {
         for (auto &p : aabbs) {
           attract(p, aabbs);
-          updateVelocity(p, timer_timestep.count());
+          updateVelocity(p, physics_timestep.count());
         }
 
         for (int i = aabbs.size() - 1; i >= 0; --i) {
           AABB &p = aabbs[i];
           auto collisions = checkCollisions(p, aabbs);
+          collision_checks += aabbs.size();
           if (collisions) {
             for (AABB *q : *collisions) {
               p.mass += q->mass;
@@ -225,7 +234,7 @@ int main(int argc, const char *argv[]) {
         }
 
         for (auto &p : aabbs) {
-          updatePosition(p, timer_timestep.count());
+          updatePosition(p, physics_timestep.count());
 
           // wrap to other edge of screen (world is a torus)
           if (p.position.x < 0) {
@@ -241,7 +250,16 @@ int main(int argc, const char *argv[]) {
         }
       }
 
-      timer_accumulator -= timer_timestep;
+      physics_accumulator -= physics_timestep;
+    }
+
+
+    output_accumulator += output_timer.getDelta();
+    output_timer.tick(output_clock.get());
+    while (output_accumulator >= output_timestep) {
+      std::cout << "Collision checks: " << collision_checks << "!\n";
+      collision_checks = 0;
+      output_accumulator -= output_timestep;
     }
 
     for (auto &box : aabbs) {
