@@ -4,6 +4,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <memory>
 #include <random>
 #include <string>
@@ -36,7 +37,7 @@ static constexpr int gl_minor_version = 3;
 static constexpr timing::seconds physics_timestep(1.0/60.0);
 static constexpr timing::seconds output_timestep(1.0);
 static constexpr int simulation_speed = 1;
-static constexpr int num_aabbs = 50;
+static constexpr int num_aabbs = 450;
 
 int map(const double x, const double n, const double m) {
   return (x / n) * m;
@@ -180,15 +181,17 @@ int main(int argc, const char *argv[]) {
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
   uniformMatrix4fv(shader_program, "view", glm::value_ptr(view));
 
-  timing::Clock physics_clock;
+  timing::Clock clock;
+
   timing::Timer physics_timer;
   timing::seconds physics_accumulator(0.0);
-
-  timing::Clock output_clock;
   timing::Timer output_timer;
   timing::seconds output_accumulator(0.0);
+  timing::Timer per_frame_timer;
+  timing::seconds per_frame_accumulator(0.0);
 
   int collision_checks = 0;
+  std::vector<double> frame_times;
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -198,10 +201,12 @@ int main(int argc, const char *argv[]) {
     glUseProgram(shader_program);
 
     physics_accumulator += physics_timer.getDelta();
-    physics_timer.tick(physics_clock.get());
+    physics_timer.tick(clock.get());
 
     while (physics_accumulator >= physics_timestep) {
       for (int i = 0; i < simulation_speed; ++i) {
+        per_frame_timer.tick(clock.get());
+
         for (std::shared_ptr<AABB> p : aabbs) {
           attract(*p, aabbs);
           updateVelocity(*p, physics_timestep.count());
@@ -230,7 +235,7 @@ int main(int argc, const char *argv[]) {
             );
             aabbs.erase(it, aabbs.end());
 
-            std::cout << "COLLISION\n";
+            // std::cout << "COLLISION\n";
           }
         }
 
@@ -249,6 +254,9 @@ int main(int argc, const char *argv[]) {
             p->position.y = 0;
           }
         }
+
+        per_frame_timer.tick(clock.get());
+        frame_times.push_back(per_frame_timer.getDelta().count());
       }
 
       physics_accumulator -= physics_timestep;
@@ -256,10 +264,18 @@ int main(int argc, const char *argv[]) {
 
 
     output_accumulator += output_timer.getDelta();
-    output_timer.tick(output_clock.get());
+    output_timer.tick(clock.get());
     while (output_accumulator >= output_timestep) {
       std::cout << "Collision checks: " << collision_checks << "!\n";
       collision_checks = 0;
+
+      double frame_times_sum = std::accumulate(
+        frame_times.begin(), frame_times.end(), 0.0
+      );
+      double avg_frame_time = frame_times_sum / frame_times.size();
+      std::cout << "Average frame time: " << avg_frame_time << "!\n";
+      frame_times.clear();
+
       output_accumulator -= output_timestep;
     }
 
