@@ -117,3 +117,12 @@ void drawRect(const Rect &r) {
 
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
+
+void drawRectOutline(const Rect &r) {
+  if (current_vao != r.vao) {
+    glBindVertexArray(r.vao);
+    current_vao = r.vao;
+  }
+
+  glDrawArrays(GL_LINE_LOOP, 0, 4);
+}

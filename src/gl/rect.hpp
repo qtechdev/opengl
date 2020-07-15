@@ -11,6 +11,9 @@ struct Rect {
 };
 
 Rect createRect();
+Rect createTexturedRect();
+
 void drawRect(const Rect &r);
+void drawRectOutline(const Rect &r);
 
 #endif // __RECT_HPP__

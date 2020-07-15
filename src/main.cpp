@@ -2,6 +2,7 @@
 #include <array>
 #include <chrono>
 #include <ctime>
+#include <deque>
 #include <fstream>
 #include <iostream>
 #include <numeric>
@@ -23,6 +24,7 @@
 #include "gl/window.hpp"
 #include "util/error.hpp"
 #include "util/file_io.hpp"
+#include "util/quadtree.hpp"
 #include "util/timer.hpp"
 #include "util/xdg.hpp"
 
@@ -38,6 +40,17 @@ static constexpr timing::seconds physics_timestep(1.0/60.0);
 static constexpr timing::seconds output_timestep(1.0);
 static constexpr int simulation_speed = 1;
 static constexpr int num_aabbs = 450;
+
+static constexpr int quadtree_capacity = 10;
+
+struct mouse_click {
+  double xpos;
+  double ypos;
+  int button;
+  int action;
+};
+
+static std::deque<mouse_click> mouse_clicks;
 
 int map(const double x, const double n, const double m) {
   return (x / n) * m;
@@ -59,6 +72,7 @@ Texture loadTexture(const xdg::path &path, fio::log_stream_f &log_stream);
 #endif
 
 void processInput(GLFWwindow *window);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 std::array<glm::mat4, 3> fullscreen_rect_matrices(const int w, const int h);
 
 int main(int argc, const char *argv[]) {
@@ -106,6 +120,7 @@ int main(int argc, const char *argv[]) {
 
   glViewport(0, 0, window_width, window_height);
   glClearColor(0.1, 0.1, 0.2, 1.0);
+  glfwSetMouseButtonCallback(window, mouse_button_callback);
 
   auto v_shader_path = xdg::get_data_path(
     base_dirs, "qogl", "shaders/mvp/vshader.glsl"
@@ -159,7 +174,7 @@ int main(int argc, const char *argv[]) {
   std::mt19937 engine(rd());
   std::uniform_int_distribution<> x_distribution(10, window_width - 10);
   std::uniform_int_distribution<> y_distribution(10, window_height - 10);
-  std::uniform_real_distribution<> mass_disribution(1.0, 1.0);
+  std::uniform_real_distribution<> mass_disribution(1.0, 10.0);
   std::uniform_real_distribution<> velocity_distribution(-10.0, 10.0);
 
   std::vector<std::shared_ptr<AABB>> aabbs;
@@ -193,10 +208,30 @@ int main(int argc, const char *argv[]) {
   int collision_checks = 0;
   std::vector<double> frame_times;
 
+  quadtree::AABB window_aabb{
+    window_width / 2.0, window_height / 2.0,
+    window_width / 2.0, window_height / 2.0
+  };
+  quadtree::quadtree qt(window_aabb, quadtree_capacity);
+
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
     glfwPollEvents();
     processInput(window);
+
+    while (mouse_clicks.size() != 0) {
+      auto mc = mouse_clicks.front();
+      mouse_clicks.pop_front();
+      AABB p;
+      p.position = {mc.xpos, window_height - mc.ypos};
+      p.mass = mass_disribution(engine);
+      p.velocity = {
+        velocity_distribution(engine),
+        velocity_distribution(engine)
+      };
+      p.size = glm::vec2(std::sqrt(p.mass));
+      aabbs.push_back(std::make_shared<AABB>(p));
+    }
 
     glUseProgram(shader_program);
 
@@ -206,6 +241,14 @@ int main(int argc, const char *argv[]) {
     while (physics_accumulator >= physics_timestep) {
       for (int i = 0; i < simulation_speed; ++i) {
         per_frame_timer.tick(clock.get());
+
+        qt.clear();
+        for (std::shared_ptr<AABB> a : aabbs) {
+          quadtree::Point p{
+            a->position.x, a->position.y, nullptr
+          };
+          qt.insert(p);
+        }
 
         for (std::shared_ptr<AABB> p : aabbs) {
           attract(*p, aabbs);
@@ -235,7 +278,7 @@ int main(int argc, const char *argv[]) {
             );
             aabbs.erase(it, aabbs.end());
 
-            // std::cout << "COLLISION\n";
+            std::cout << "COLLISION\n";
           }
         }
 
@@ -279,6 +322,19 @@ int main(int argc, const char *argv[]) {
       output_accumulator -= output_timestep;
     }
 
+    for (const quadtree::AABB &p : qt.getBoundaries()) {
+      double x = p.x - p.half_w;
+      double y = p.y - p.half_h;
+      double w = p.half_w * 2.0;
+      double h = p.half_h * 2.0;
+
+      glm::mat4 m = glm::mat4(1.0);
+      m = glm::translate(m, glm::vec3(x, y, 0.0));
+      m = glm::scale(m, glm::vec3(w, h, 0.0));
+      uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
+      drawRectOutline(rect);
+    }
+
     for (std::shared_ptr<AABB> box : aabbs) {
       glm::mat4 m = glm::mat4(1.0);
       m = glm::translate(m, glm::vec3(box->position, 0.0));
@@ -298,6 +354,17 @@ void processInput(GLFWwindow *window) {
     glfwSetWindowShouldClose(window, true);
   }
 }
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+  if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+    double xpos;
+    double ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+
+    mouse_clicks.push_back({xpos, ypos, button, action});
+  }
+}
+
 #ifdef DEBUG
 std::optional<xdg::path> xdg::get_data_path(
   const xdg::base &b, const std::string &n, const std::string &p,
