@@ -35,7 +35,7 @@ static constexpr int gl_minor_version = 3;
 
 static constexpr timing::seconds physics_timestep(1.0/60.0);
 static constexpr timing::seconds output_timestep(1.0);
-static constexpr int simulation_speed = 10;
+static constexpr int simulation_speed = 1;
 static constexpr int num_aabbs = 50;
 
 int map(const double x, const double n, const double m) {
