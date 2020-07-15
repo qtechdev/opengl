@@ -1,6 +1,5 @@
 #ifndef __2D_COLLISION_HPP__
 #define __2D_COLLISION_HPP__
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -12,8 +11,8 @@
 
 glm::vec2 lerp(const glm::vec2 &a, const glm::vec2 &b, const double x);
 
-std::optional<std::vector<std::shared_ptr<AABB>>> checkCollisions(
-  const AABB &p, const std::vector<std::shared_ptr<AABB>> &aabbs
+std::optional<std::vector<AABB *>> checkCollisions(
+  const AABB &p, std::vector<AABB> &aabbs
 );
 
 std::optional<std::vector<Point *>> checkCollisions(

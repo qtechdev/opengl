@@ -6,7 +6,6 @@
 #include <fstream>
 #include <iostream>
 #include <numeric>
-#include <memory>
 #include <random>
 #include <string>
 #include <vector>
@@ -39,7 +38,7 @@ static constexpr int gl_minor_version = 3;
 static constexpr timing::seconds physics_timestep(1.0/60.0);
 static constexpr timing::seconds output_timestep(1.0);
 static constexpr int simulation_speed = 1;
-static constexpr int num_aabbs = 450;
+static constexpr int num_aabbs = 100;
 
 static constexpr int quadtree_capacity = 10;
 
@@ -177,7 +176,7 @@ int main(int argc, const char *argv[]) {
   std::uniform_real_distribution<> mass_disribution(1.0, 10.0);
   std::uniform_real_distribution<> velocity_distribution(-10.0, 10.0);
 
-  std::vector<std::shared_ptr<AABB>> aabbs;
+  std::vector<AABB> aabbs;
   for (int i = 0; i < num_aabbs; ++i) {
     AABB p;
     p.position = {
@@ -190,7 +189,7 @@ int main(int argc, const char *argv[]) {
       velocity_distribution(engine)
     };
     p.size = glm::vec2(std::sqrt(p.mass));
-    aabbs.push_back(std::make_shared<AABB>(p));
+    aabbs.push_back(p);
   }
 
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
@@ -230,7 +229,7 @@ int main(int argc, const char *argv[]) {
         velocity_distribution(engine)
       };
       p.size = glm::vec2(std::sqrt(p.mass));
-      aabbs.push_back(std::make_shared<AABB>(p));
+      aabbs.push_back(p);
     }
 
     glUseProgram(shader_program);
@@ -243,24 +242,24 @@ int main(int argc, const char *argv[]) {
         per_frame_timer.tick(clock.get());
 
         qt.clear();
-        for (std::shared_ptr<AABB> a : aabbs) {
+        for (const AABB &a : aabbs) {
           quadtree::Point p{
-            a->position.x, a->position.y, nullptr
+            a.position.x, a.position.y, nullptr
           };
           qt.insert(p);
         }
 
-        for (std::shared_ptr<AABB> p : aabbs) {
-          attract(*p, aabbs);
-          updateVelocity(*p, physics_timestep.count());
+        for (AABB &p : aabbs) {
+          attract(p, aabbs);
+          updateVelocity(p, physics_timestep.count());
         }
 
         for (int i = aabbs.size() - 1; i >= 0; --i) {
-          AABB p = *aabbs[i];
+          AABB &p = aabbs[i];
           auto collisions = checkCollisions(p, aabbs);
           collision_checks += aabbs.size();
           if (collisions) {
-            for (std::shared_ptr<AABB> q : *collisions) {
+            for (AABB *q : *collisions) {
               p.mass += q->mass;
               p.size = glm::vec2(std::sqrt(p.mass));
 
@@ -274,7 +273,7 @@ int main(int argc, const char *argv[]) {
 
             auto it = std::remove_if(
               aabbs.begin(), aabbs.end(),
-              [](const std::shared_ptr<AABB> p){ return !p->is_alive; }
+              [](const AABB &p){ return !p.is_alive; }
             );
             aabbs.erase(it, aabbs.end());
 
@@ -282,19 +281,19 @@ int main(int argc, const char *argv[]) {
           }
         }
 
-        for (std::shared_ptr<AABB> p : aabbs) {
-          updatePosition(*p, physics_timestep.count());
+        for (AABB &p : aabbs) {
+          updatePosition(p, physics_timestep.count());
 
           // wrap to other edge of screen (world is a torus)
-          if (p->position.x < 0) {
-            p->position.x = window_width;
-          } else if (p->position.x > (window_width)) {
-            p->position.x = 0;
+          if (p.position.x < 0) {
+            p.position.x = window_width;
+          } else if (p.position.x > (window_width)) {
+            p.position.x = 0;
           }
-          if (p->position.y < 0) {
-            p->position.y = window_height;
-          } else if (p->position.y > (window_height)) {
-            p->position.y = 0;
+          if (p.position.y < 0) {
+            p.position.y = window_height;
+          } else if (p.position.y > (window_height)) {
+            p.position.y = 0;
           }
         }
 
@@ -309,14 +308,16 @@ int main(int argc, const char *argv[]) {
     output_accumulator += output_timer.getDelta();
     output_timer.tick(clock.get());
     while (output_accumulator >= output_timestep) {
-      std::cout << "Collision checks: " << collision_checks << "!\n";
+      std::cout << "Number of objects: " << aabbs.size() << "\n";
+
+      std::cout << "Collision checks: " << collision_checks << "\n";
       collision_checks = 0;
 
       double frame_times_sum = std::accumulate(
         frame_times.begin(), frame_times.end(), 0.0
       );
       double avg_frame_time = frame_times_sum / frame_times.size();
-      std::cout << "Average frame time: " << avg_frame_time << "!\n";
+      std::cout << "Average frame time: " << avg_frame_time << "\n";
       frame_times.clear();
 
       output_accumulator -= output_timestep;
@@ -335,10 +336,10 @@ int main(int argc, const char *argv[]) {
       drawRectOutline(rect);
     }
 
-    for (std::shared_ptr<AABB> box : aabbs) {
+    for (const AABB &box : aabbs) {
       glm::mat4 m = glm::mat4(1.0);
-      m = glm::translate(m, glm::vec3(box->position, 0.0));
-      m = glm::scale(m, glm::vec3(box->size, 0.0));
+      m = glm::translate(m, glm::vec3(box.position, 0.0));
+      m = glm::scale(m, glm::vec3(box.size, 0.0));
       uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
       drawRect(rect);
     }
