@@ -226,19 +226,17 @@ int main(int argc, const char *argv[]) {
 
         for (auto &p : aabbs) {
           updatePosition(p, timer_timestep.count());
+
+          // wrap to other edge of screen (world is a torus)
           if (p.position.x < 0) {
-            p.position.x = 1;
-            p.velocity.x *= -1;
-          } else if (p.position.x > (window_width - p.size.x)) {
-            p.position.x = window_width - p.size.x;
-            p.velocity.x *= -1;
+            p.position.x = window_width;
+          } else if (p.position.x > (window_width)) {
+            p.position.x = 0;
           }
           if (p.position.y < 0) {
-            p.position.y = 1;
-            p.velocity.y *= -1;
-          } else if (p.position.y > (window_height - p.size.y)) {
-            p.position.y = window_height - p.size.y;
-            p.velocity.y *= -1;
+            p.position.y = window_height;
+          } else if (p.position.y > (window_height)) {
+            p.position.y = 0;
           }
         }
       }
