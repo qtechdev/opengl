@@ -1,3 +1,4 @@
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -48,37 +49,37 @@ std::optional<std::vector<Point *>> checkCollisions(
 }
 
 
-std::optional<std::vector<AABB *>> checkCollisions(
-  AABB &p, std::vector<AABB> &aabbs
+std::optional<std::vector<std::shared_ptr<AABB>>> checkCollisions(
+  const AABB &p, const std::vector<std::shared_ptr<AABB>> &aabbs
 ) {
-  std::vector<AABB *> collided;
+  std::vector<std::shared_ptr<AABB>> collided;
 
   const double fudge = 1;
-  for (auto &q : aabbs) {
-    if (p == q) {
+  for (const std::shared_ptr<AABB> q : aabbs) {
+    if (p == *q) {
       continue;
     }
 
     if (
-      intersectAABB(p.position, p.size, q.position, q.size, fudge) ||
+      intersectAABB(p.position, p.size, q->position, q->size, fudge) ||
       intersectAABB(
         lerp(p.position, p.next_position, 0.25), p.size,
-        lerp(q.position, q.next_position, 0.25), q.size,
+        lerp(q->position, q->next_position, 0.25), q->size,
         fudge
       ) ||
       intersectAABB(
         lerp(p.position, p.next_position, 0.50), p.size,
-        lerp(q.position, q.next_position, 0.50), q.size,
+        lerp(q->position, q->next_position, 0.50), q->size,
         fudge
       ) ||
       intersectAABB(
         lerp(p.position, p.next_position, 0.75), p.size,
-        lerp(q.position, q.next_position, 0.75), q.size,
+        lerp(q->position, q->next_position, 0.75), q->size,
         fudge
       ) ||
-      intersectAABB(p.next_position, p.size, q.next_position, q.size, fudge)
+      intersectAABB(p.next_position, p.size, q->next_position, q->size, fudge)
     ) {
-     collided.push_back(&q);
+     collided.push_back(q);
     }
   }
 

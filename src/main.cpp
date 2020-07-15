@@ -4,6 +4,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <string>
 #include <vector>
@@ -160,7 +161,7 @@ int main(int argc, const char *argv[]) {
   std::uniform_real_distribution<> mass_disribution(1.0, 1.0);
   std::uniform_real_distribution<> velocity_distribution(-10.0, 10.0);
 
-  std::vector<AABB> aabbs;
+  std::vector<std::shared_ptr<AABB>> aabbs;
   for (int i = 0; i < num_aabbs; ++i) {
     AABB p;
     p.position = {
@@ -173,7 +174,7 @@ int main(int argc, const char *argv[]) {
       velocity_distribution(engine)
     };
     p.size = glm::vec2(std::sqrt(p.mass));
-    aabbs.push_back(p);
+    aabbs.push_back(std::make_shared<AABB>(p));
   }
 
   uniformMatrix4fv(shader_program, "projection", glm::value_ptr(projection));
@@ -201,17 +202,17 @@ int main(int argc, const char *argv[]) {
 
     while (physics_accumulator >= physics_timestep) {
       for (int i = 0; i < simulation_speed; ++i) {
-        for (auto &p : aabbs) {
-          attract(p, aabbs);
-          updateVelocity(p, physics_timestep.count());
+        for (std::shared_ptr<AABB> p : aabbs) {
+          attract(*p, aabbs);
+          updateVelocity(*p, physics_timestep.count());
         }
 
         for (int i = aabbs.size() - 1; i >= 0; --i) {
-          AABB &p = aabbs[i];
+          AABB p = *aabbs[i];
           auto collisions = checkCollisions(p, aabbs);
           collision_checks += aabbs.size();
           if (collisions) {
-            for (AABB *q : *collisions) {
+            for (std::shared_ptr<AABB> q : *collisions) {
               p.mass += q->mass;
               p.size = glm::vec2(std::sqrt(p.mass));
 
@@ -225,7 +226,7 @@ int main(int argc, const char *argv[]) {
 
             auto it = std::remove_if(
               aabbs.begin(), aabbs.end(),
-              [](const AABB &p){ return !p.is_alive; }
+              [](const std::shared_ptr<AABB> p){ return !p->is_alive; }
             );
             aabbs.erase(it, aabbs.end());
 
@@ -233,19 +234,19 @@ int main(int argc, const char *argv[]) {
           }
         }
 
-        for (auto &p : aabbs) {
-          updatePosition(p, physics_timestep.count());
+        for (std::shared_ptr<AABB> p : aabbs) {
+          updatePosition(*p, physics_timestep.count());
 
           // wrap to other edge of screen (world is a torus)
-          if (p.position.x < 0) {
-            p.position.x = window_width;
-          } else if (p.position.x > (window_width)) {
-            p.position.x = 0;
+          if (p->position.x < 0) {
+            p->position.x = window_width;
+          } else if (p->position.x > (window_width)) {
+            p->position.x = 0;
           }
-          if (p.position.y < 0) {
-            p.position.y = window_height;
-          } else if (p.position.y > (window_height)) {
-            p.position.y = 0;
+          if (p->position.y < 0) {
+            p->position.y = window_height;
+          } else if (p->position.y > (window_height)) {
+            p->position.y = 0;
           }
         }
       }
@@ -262,10 +263,10 @@ int main(int argc, const char *argv[]) {
       output_accumulator -= output_timestep;
     }
 
-    for (auto &box : aabbs) {
+    for (std::shared_ptr<AABB> box : aabbs) {
       glm::mat4 m = glm::mat4(1.0);
-      m = glm::translate(m, glm::vec3(box.position, 0.0));
-      m = glm::scale(m, glm::vec3(box.size, 0.0));
+      m = glm::translate(m, glm::vec3(box->position, 0.0));
+      m = glm::scale(m, glm::vec3(box->size, 0.0));
       uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
       drawRect(rect);
     }

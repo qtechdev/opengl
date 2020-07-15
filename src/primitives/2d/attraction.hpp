@@ -1,6 +1,7 @@
 #ifndef __2D_ATTRACTION_HPP__
 #define __2D_ATTRACTION_HPP__
 
+#include <memory>
 #include <vector>
 
 #include "aabb.hpp"
@@ -11,7 +12,7 @@ double dist_sq(const AABB &p, const AABB &q);
 double dist_sq(const Point &p, const Point &q);
 
 void attract(
-  AABB &p, const std::vector<AABB> &aabbs,
+  AABB &p, const std::vector<std::shared_ptr<AABB>> &aabbs,
   const double min_dist=0, const double max_dist=0
 );
 
