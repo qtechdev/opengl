@@ -15,6 +15,10 @@ GLuint createProgram(
 std::optional<std::string> getCompileStatus(const GLuint shader);
 std::optional<std::string> getLinkStatus(const GLuint program);
 
+void uniform3f(
+  const GLuint program, const char *name,
+  const GLfloat x, const GLfloat y, const GLfloat z
+);
 void uniformMatrix4fv(
   const GLuint program, const char *name, const GLfloat *matrix
 );

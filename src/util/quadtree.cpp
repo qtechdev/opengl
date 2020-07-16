@@ -40,6 +40,34 @@ bool quadtree::quadtree::insert(const Point &o) {
   return true;
 }
 
+std::vector<quadtree::Point> quadtree::quadtree::search(const AABB &area) {
+  std::vector<Point> points;
+  if (is_leaf) {
+    for (const auto &o : objects) {
+      if (contains(o, area)) {
+        points.push_back(o);
+      }
+    }
+
+    return points;
+  }
+
+  for (const auto &o : q1->search(area)) {
+    points.push_back(o);
+  }
+  for (const auto &o : q2->search(area)) {
+    points.push_back(o);
+  }
+  for (const auto &o : q3->search(area)) {
+    points.push_back(o);
+  }
+  for (const auto &o : q4->search(area)) {
+    points.push_back(o);
+  }
+
+  return points;
+}
+
 std::vector<quadtree::AABB> quadtree::quadtree::getBoundaries() {
   if (is_leaf) {
     return {boundary};

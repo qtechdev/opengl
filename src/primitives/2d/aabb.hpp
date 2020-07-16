@@ -7,6 +7,8 @@ struct AABB {
   static int current_id;
   int id;
 
+  glm::vec3 tint={1.0, 1.0, 1.0};
+
   glm::vec2 position={0.0, 0.0};
   glm::vec2 next_position={0.0, 0.0};
   glm::vec2 size={1.0, 1.0};

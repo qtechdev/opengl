@@ -23,20 +23,37 @@ glm::vec2 lerp(const glm::vec2 &a, const glm::vec2 &b, const double x) {
   return a + d;
 }
 
-std::optional<std::vector<Point *>> checkCollisions(
-  Point &p, std::vector<Point> &points
+std::optional<std::vector<AABB *>> checkCollisions(
+  const AABB &p, std::vector<AABB *> aabbs
 ) {
-  std::vector<Point *> collided;
+  std::vector<AABB *> collided;
 
-  for (auto &q : points) {
-    if (p == q) {
+  const double fudge = 1;
+  for (AABB *q : aabbs) {
+    if (p == *q) {
       continue;
     }
 
     if (
-      intersectLine(p.position, p.next_position, q.position, q.next_position)
+      intersectAABB(p.position, p.size, q->position, q->size, fudge) ||
+      intersectAABB(
+        lerp(p.position, p.next_position, 0.25), p.size,
+        lerp(q->position, q->next_position, 0.25), q->size,
+        fudge
+      ) ||
+      intersectAABB(
+        lerp(p.position, p.next_position, 0.50), p.size,
+        lerp(q->position, q->next_position, 0.50), q->size,
+        fudge
+      ) ||
+      intersectAABB(
+        lerp(p.position, p.next_position, 0.75), p.size,
+        lerp(q->position, q->next_position, 0.75), q->size,
+        fudge
+      ) ||
+      intersectAABB(p.next_position, p.size, q->next_position, q->size, fudge)
     ) {
-     collided.push_back(&q);
+     collided.push_back(q);
     }
   }
 
@@ -47,38 +64,20 @@ std::optional<std::vector<Point *>> checkCollisions(
   return {};
 }
 
-
-std::optional<std::vector<AABB *>> checkCollisions(
-  const AABB &p, std::vector<AABB> &aabbs
+std::optional<std::vector<Point *>> checkCollisions(
+  Point &p, std::vector<Point *> points
 ) {
-  std::vector<AABB *> collided;
+  std::vector<Point *> collided;
 
-  const double fudge = 1;
-  for (AABB &q : aabbs) {
-    if (p == q) {
+  for (auto *q : points) {
+    if (p == *q) {
       continue;
     }
 
     if (
-      intersectAABB(p.position, p.size, q.position, q.size, fudge) ||
-      intersectAABB(
-        lerp(p.position, p.next_position, 0.25), p.size,
-        lerp(q.position, q.next_position, 0.25), q.size,
-        fudge
-      ) ||
-      intersectAABB(
-        lerp(p.position, p.next_position, 0.50), p.size,
-        lerp(q.position, q.next_position, 0.50), q.size,
-        fudge
-      ) ||
-      intersectAABB(
-        lerp(p.position, p.next_position, 0.75), p.size,
-        lerp(q.position, q.next_position, 0.75), q.size,
-        fudge
-      ) ||
-      intersectAABB(p.next_position, p.size, q.next_position, q.size, fudge)
+      intersectLine(p.position, p.next_position, q->position, q->next_position)
     ) {
-     collided.push_back(&q);
+     collided.push_back(q);
     }
   }
 

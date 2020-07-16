@@ -29,6 +29,8 @@ namespace quadtree {
     void clear();
     bool insert(const Point &o);
 
+    std::vector<Point> search(const AABB &area);
+
     std::vector<AABB> getBoundaries();
   private:
     void divide();

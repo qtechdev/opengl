@@ -28,18 +28,18 @@ double dist_sq(const Point &p, const Point &q) {
 }
 
 void attract(
-  AABB &p, const std::vector<AABB> &aabbs,
+  AABB &p, const std::vector<AABB *> aabbs,
   const double min_dist, const double max_dist
 ) {
   const double min_dist_sq = min_dist * min_dist;
   const double max_dist_sq = max_dist * max_dist;
 
-  for (const AABB &q : aabbs) {
-    if (p == q) {
+  for (AABB *q : aabbs) {
+    if (p == *q) {
       continue;
     }
 
-    double dsq = dist_sq(p, q);
+    double dsq = dist_sq(p, *q);
     if (
       ((min_dist_sq < max_dist_sq) && (dsq < min_dist_sq)) ||
       ((max_dist_sq != 0) && (dsq > max_dist_sq)) ||
@@ -48,8 +48,8 @@ void attract(
       continue;
     }
 
-    glm::vec2 direction = glm::normalize(q.position - p.position);
-    double magnitude = (p.mass * q.mass) / dsq;
+    glm::vec2 direction = glm::normalize(q->position - p.position);
+    double magnitude = (p.mass * q->mass) / dsq;
     glm::vec2 force = direction * glm::vec2(magnitude);
 
     p.acceleration += force / glm::vec2(p.mass);
@@ -57,18 +57,18 @@ void attract(
 }
 
 void attract(
-  Point &p, const std::vector<Point> &points,
+  Point &p, const std::vector<Point *> points,
   const double min_dist, const double max_dist
 ) {
   const double min_dist_sq = min_dist * min_dist;
   const double max_dist_sq = max_dist * max_dist;
 
-  for (const auto &q : points) {
-    if (p == q) {
+  for (Point *q : points) {
+    if (p == *q) {
       continue;
     }
 
-    double dsq = dist_sq(p, q);
+    double dsq = dist_sq(p, *q);
     if (
       ((min_dist_sq < max_dist_sq) && (dsq < min_dist_sq)) ||
       ((max_dist_sq != 0) && (dsq > max_dist_sq)) ||
@@ -77,8 +77,8 @@ void attract(
       continue;
     }
 
-    glm::vec2 direction = glm::normalize(q.position - p.position);
-    double magnitude = (p.mass * q.mass) / dsq;
+    glm::vec2 direction = glm::normalize(q->position - p.position);
+    double magnitude = (p.mass * q->mass) / dsq;
     glm::vec2 force = direction * glm::vec2(magnitude);
 
     p.acceleration += force / glm::vec2(p.mass);

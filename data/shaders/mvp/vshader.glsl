@@ -7,9 +7,10 @@ out vec3 _colour;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform vec3 colour_tint;
 
 void main() {
   gl_Position = projection * view * model * vec4(attr_pos, 1.0);
   // gl_Position = projection * view * vec4(attr_pos, 1.0);
-  _colour = attr_colour;
+  _colour = attr_colour * colour_tint;
 }

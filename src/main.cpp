@@ -29,6 +29,9 @@
 
 #include "primitives/2d.hpp"
 
+#define QUADTREE
+#define QUADTREE_DEBUG
+
 static constexpr int window_width = 640;
 static constexpr int window_height = 480;
 
@@ -38,7 +41,7 @@ static constexpr int gl_minor_version = 3;
 static constexpr timing::seconds physics_timestep(1.0/60.0);
 static constexpr timing::seconds output_timestep(1.0);
 static constexpr int simulation_speed = 1;
-static constexpr int num_aabbs = 100;
+static constexpr int num_aabbs = 500;
 
 static constexpr int quadtree_capacity = 10;
 
@@ -176,19 +179,19 @@ int main(int argc, const char *argv[]) {
   std::uniform_real_distribution<> mass_disribution(1.0, 10.0);
   std::uniform_real_distribution<> velocity_distribution(-10.0, 10.0);
 
-  std::vector<AABB> aabbs;
+  std::vector<AABB *> aabbs;
   for (int i = 0; i < num_aabbs; ++i) {
-    AABB p;
-    p.position = {
+    AABB *p = new AABB;
+    p->position = {
       x_distribution(engine),
       y_distribution(engine)
     };
-    p.mass = mass_disribution(engine);
-    p.velocity = {
+    p->mass = mass_disribution(engine);
+    p->velocity = {
       velocity_distribution(engine),
       velocity_distribution(engine)
     };
-    p.size = glm::vec2(std::sqrt(p.mass));
+    p->size = glm::vec2(std::sqrt(p->mass));
     aabbs.push_back(p);
   }
 
@@ -207,17 +210,20 @@ int main(int argc, const char *argv[]) {
   int collision_checks = 0;
   std::vector<double> frame_times;
 
+  #ifdef QUADTREE
   quadtree::AABB window_aabb{
     window_width / 2.0, window_height / 2.0,
     window_width / 2.0, window_height / 2.0
   };
   quadtree::quadtree qt(window_aabb, quadtree_capacity);
+  #endif
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
     glfwPollEvents();
     processInput(window);
 
+    #ifdef CLICK_TO_ADD
     while (mouse_clicks.size() != 0) {
       auto mc = mouse_clicks.front();
       mouse_clicks.pop_front();
@@ -229,8 +235,9 @@ int main(int argc, const char *argv[]) {
         velocity_distribution(engine)
       };
       p.size = glm::vec2(std::sqrt(p.mass));
-      aabbs.push_back(p);
+      aabbs.push_back(&p);
     }
+    #endif
 
     glUseProgram(shader_program);
 
@@ -241,31 +248,59 @@ int main(int argc, const char *argv[]) {
       for (int i = 0; i < simulation_speed; ++i) {
         per_frame_timer.tick(clock.get());
 
+        #ifdef QUADTREE
         qt.clear();
-        for (const AABB &a : aabbs) {
+
+        for (AABB *a : aabbs) {
           quadtree::Point p{
-            a.position.x, a.position.y, nullptr
+            a->position.x, a->position.y, static_cast<void *>(a)
           };
+          static_cast<AABB *>(p.user_data)->tint = {1.0, 1.0, 1.0};
           qt.insert(p);
         }
+        #endif
 
-        for (AABB &p : aabbs) {
-          attract(p, aabbs);
-          updateVelocity(p, physics_timestep.count());
+        #ifdef QUADTREE_DEBUG
+        for (auto &p : qt.search({150, 150, 50, 50})) {
+          static_cast<AABB *>(p.user_data)->tint = {1.0, 0.0, 0.0};
+        }
+        #endif
+
+        for (AABB *p : aabbs) {
+          attract(*p, aabbs);
+          updateVelocity(*p, physics_timestep.count());
         }
 
         for (int i = aabbs.size() - 1; i >= 0; --i) {
-          AABB &p = aabbs[i];
-          auto collisions = checkCollisions(p, aabbs);
+          AABB *p = aabbs[i];
+
+          #ifdef QUADTREE
+          auto found_points = qt.search(
+            {p->position.x, p->position.y, p->size.x, p->size.y}
+          );
+          std::vector<AABB *> to_check;
+          std::for_each(
+            found_points.begin(), found_points.end(),
+            [&](const quadtree::Point p){
+              to_check.push_back(static_cast<AABB *>(p.user_data));
+            }
+          );
+
+          auto collisions = checkCollisions(*p, to_check);
+          collision_checks += to_check.size();
+          #else
+          auto collisions = checkCollisions(*p, aabbs);
           collision_checks += aabbs.size();
+          #endif
+
           if (collisions) {
             for (AABB *q : *collisions) {
-              p.mass += q->mass;
-              p.size = glm::vec2(std::sqrt(p.mass));
+              p->mass += q->mass;
+              p->size = glm::vec2(std::sqrt(p->mass));
 
-              double total_mass = p.mass + q->mass;
-              p.velocity = (
-                (p.velocity * glm::vec2((p.mass / total_mass))) +
+              double total_mass = p->mass + q->mass;
+              p->velocity = (
+                (p->velocity * glm::vec2((p->mass / total_mass))) +
                 (q->velocity * glm::vec2((q->mass / total_mass)))
               );
               q->is_alive = false;
@@ -273,27 +308,28 @@ int main(int argc, const char *argv[]) {
 
             auto it = std::remove_if(
               aabbs.begin(), aabbs.end(),
-              [](const AABB &p){ return !p.is_alive; }
+              [](const AABB *p){ return !p->is_alive; }
             );
+
             aabbs.erase(it, aabbs.end());
 
-            std::cout << "COLLISION\n";
+            // std::cout << "COLLISION\n";
           }
         }
 
-        for (AABB &p : aabbs) {
-          updatePosition(p, physics_timestep.count());
+        for (AABB *p : aabbs) {
+          updatePosition(*p, physics_timestep.count());
 
           // wrap to other edge of screen (world is a torus)
-          if (p.position.x < 0) {
-            p.position.x = window_width;
-          } else if (p.position.x > (window_width)) {
-            p.position.x = 0;
+          if (p->position.x < 0) {
+            p->position.x = window_width;
+          } else if (p->position.x > (window_width)) {
+            p->position.x = 0;
           }
-          if (p.position.y < 0) {
-            p.position.y = window_height;
-          } else if (p.position.y > (window_height)) {
-            p.position.y = 0;
+          if (p->position.y < 0) {
+            p->position.y = window_height;
+          } else if (p->position.y > (window_height)) {
+            p->position.y = 0;
           }
         }
 
@@ -323,6 +359,14 @@ int main(int argc, const char *argv[]) {
       output_accumulator -= output_timestep;
     }
 
+    #ifdef QUADTREE_DEBUG
+    glm::mat4 m = glm::mat4(1.0);
+    m = glm::translate(m, glm::vec3(100.0, 100.0, 0.0));
+    m = glm::scale(m, glm::vec3(100.0, 100.0, 0.0));
+    uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
+    uniform3f(shader_program, "colour_tint", 0.2, 0.5, 0.2);
+    drawRectOutline(rect);
+
     for (const quadtree::AABB &p : qt.getBoundaries()) {
       double x = p.x - p.half_w;
       double y = p.y - p.half_h;
@@ -333,14 +377,19 @@ int main(int argc, const char *argv[]) {
       m = glm::translate(m, glm::vec3(x, y, 0.0));
       m = glm::scale(m, glm::vec3(w, h, 0.0));
       uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
+      uniform3f(shader_program, "colour_tint", 0.5, 0.5, 0.5);
       drawRectOutline(rect);
     }
+    #endif
 
-    for (const AABB &box : aabbs) {
+    for (const AABB *box : aabbs) {
       glm::mat4 m = glm::mat4(1.0);
-      m = glm::translate(m, glm::vec3(box.position, 0.0));
-      m = glm::scale(m, glm::vec3(box.size, 0.0));
+      m = glm::translate(m, glm::vec3(box->position, 0.0));
+      m = glm::scale(m, glm::vec3(box->size, 0.0));
       uniformMatrix4fv(shader_program, "model", glm::value_ptr(m));
+      uniform3f(
+        shader_program, "colour_tint", box->tint.r, box->tint.g, box->tint.b
+      );
       drawRect(rect);
     }
 
